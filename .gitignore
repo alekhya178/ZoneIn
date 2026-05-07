@@ -1,0 +1,23 @@
+# Root .gitignore for ZoneIn Project
+
+# Backend
+focused-learning-backend/node_modules/
+focused-learning-backend/.env
+focused-learning-backend/*.log
+
+# Web Frontend
+focused-learning-web/node_modules/
+focused-learning-web/dist/
+focused-learning-web/build/
+focused-learning-web/.env*
+
+# Extension
+focused-learning-extension/node_modules/
+focused-learning-extension/*.log
+
+# General
+.DS_Store
+.vscode/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
