@@ -10,7 +10,7 @@ const protect = require("../middleware/auth").protect;
 // GET /api/sessions/summary
 router.get("/summary", protect, async (req, res, next) => {
   try {
-    const sessions = await Session.find({ user: req.user._id, isActive: false });
+    const sessions = await Session.find({ user: req.user._id, isActive: false, sessionSource: "web" });
     
     let totalMinutes = 0;
     let maxDuration = 0;
@@ -42,13 +42,14 @@ router.get("/history", protect, async (req, res, next) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
+    const query = { user: req.user._id, isActive: false, sessionSource: "web" };
 
-    const sessions = await Session.find({ user: req.user._id, isActive: false })
+    const sessions = await Session.find(query)
       .sort({ startTime: -1 }) // Sorted by startTime as requested
       .skip(skip)
       .limit(limit);
       
-    const total = await Session.countDocuments({ user: req.user._id, isActive: false });
+    const total = await Session.countDocuments(query);
 
     res.json({
       sessions,
@@ -63,7 +64,7 @@ router.get("/history", protect, async (req, res, next) => {
 // GET /api/sessions/active
 router.get("/active", protect, async (req, res, next) => {
   try {
-    const session = await Session.findOne({ user: req.user._id, isActive: true });
+    const session = await Session.findOne({ user: req.user._id, isActive: true, sessionSource: "web" });
     if (!session) {
       return res.status(404).json({ message: "No active session" });
     }

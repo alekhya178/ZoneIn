@@ -15,13 +15,22 @@ async function rehydrateState() {
 
 chrome.runtime.onInstalled.addListener(() => {
   initializeStorage();
+  chrome.alarms.create("midnightCheck", { periodInMinutes: 60 });
 });
 
 chrome.runtime.onStartup.addListener(() => {
   rehydrateState();
+  checkAndResetDailyStats();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "midnightCheck") {
+    checkAndResetDailyStats();
+  }
 });
 
 rehydrateState();
+checkAndResetDailyStats();
 
 function getTodayString() {
   const d = new Date();
@@ -31,16 +40,41 @@ function getTodayString() {
 function initializeStorage() {
   chrome.storage.local.get(null, (result) => {
     const today = getTodayString();
+    const isFocus = result.isFocusMode ?? true;
+    
+    const needsReset = result.lastResetDate && result.lastResetDate !== today;
+    
     chrome.storage.local.set({
-      isFocusMode: result.isFocusMode ?? true,
-      blockedCount: result.blockedCount || 0,
+      isFocusMode: isFocus,
+      blockedCount: needsReset ? 0 : (result.blockedCount || 0),
       watchTime: result.watchTime || 0,
-      todayWatchTime: result.todayWatchTime || 0,
-      lastResetDate: result.lastResetDate || today,
+      todayWatchTime: needsReset ? 0 : (result.todayWatchTime || 0),
+      lastResetDate: today,
       sessions: result.sessions || [],
       heartbeatCount: result.heartbeatCount || 0
     });
+    updateToolbar(isFocus);
   });
+}
+
+function checkAndResetDailyStats() {
+  chrome.storage.local.get(["lastResetDate"], (result) => {
+    const today = getTodayString();
+    if (result.lastResetDate && result.lastResetDate !== today) {
+      chrome.storage.local.set({
+        todayWatchTime: 0,
+        blockedCount: 0,
+        lastResetDate: today
+      });
+    }
+  });
+}
+
+function updateToolbar(isFocus) {
+  const text = isFocus ? "ON" : "OFF";
+  const color = isFocus ? "#4facfe" : "#666666";
+  chrome.action.setBadgeText({ text });
+  chrome.action.setBadgeBackgroundColor({ color });
 }
 
 // ─── Session Management ───────────────────────────────────────────────────────
@@ -85,6 +119,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (sender.tab) activeYoutubeTabId = sender.tab.id;
   } else if (message.type === "HEARTBEAT") {
     processHeartbeat(message.seconds || 5);
+  } else if (message.type === "TOGGLE_FOCUS_MODE") {
+    chrome.storage.local.set({ isFocusMode: message.isFocusMode });
+    // Broadcast to all YouTube tabs
+    chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
+      tabs.forEach((tab) => {
+        chrome.tabs.sendMessage(tab.id, { type: "TOGGLE_FOCUS_MODE", isFocusMode: message.isFocusMode });
+      });
+    });
   }
   sendResponse({ status: "ok" });
   return true;
@@ -115,3 +157,11 @@ async function processHeartbeat(seconds) {
 
   await chrome.storage.local.set(updates);
 }
+
+// ─── Global State Listeners ──────────────────────────────────────────────────
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.isFocusMode) {
+    updateToolbar(changes.isFocusMode.newValue);
+  }
+});

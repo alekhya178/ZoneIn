@@ -223,6 +223,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (changes.todayWatchTime) {
       watchTimeEl.textContent = formatWatchTime(changes.todayWatchTime.newValue);
     }
+    if (changes.isFocusMode) {
+      toggle.checked = changes.isFocusMode.newValue;
+      if (changes.isFocusMode.newValue) {
+        focusWarning.classList.add("hidden");
+      } else {
+        focusWarning.classList.remove("hidden");
+      }
+    }
   });
 
 });

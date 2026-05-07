@@ -1,11 +1,38 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { BookOpen, BarChart2, CheckCircle, User, Settings, LogOut, Mail, Info, Clock, Notebook as NotebookIcon, ShieldAlert } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+const EXTENSION_ID = "YOUR_EXTENSION_ID"; // The user will need to update this or we can find it
 
 const Sidebar = () => {
   const location = useLocation();
   const isAnalytics = location.pathname.startsWith('/analytics');
   const isSessions = location.pathname.startsWith('/study-sessions');
+  const [isFocusMode, setIsFocusMode] = useState(true);
+
+  // Sync with extension if available
+  useEffect(() => {
+    if (window.chrome && window.chrome.runtime) {
+      // In a real app, we'd use a specific Extension ID if externally_connectable is set
+      // For local dev, we can also use messages if the extension injected a content script
+    }
+  }, []);
+
+  const handleToggleFocus = () => {
+    const newState = !isFocusMode;
+    setIsFocusMode(newState);
+    
+    // Attempt to communicate with extension
+    if (window.chrome && window.chrome.runtime) {
+      try {
+        // This requires the extension to be externally_connectable or a content script to be present
+        window.postMessage({ type: "ZONEIN_TOGGLE_FOCUS", isFocusMode: newState }, "*");
+      } catch (e) {
+        console.error("Failed to send message to extension", e);
+      }
+    }
+  };
 
   const navItems = isSessions ? [
     { section: "LEARNING", items: [
@@ -105,10 +132,17 @@ const Sidebar = () => {
               </div>
               <p className="text-xs text-gray-400 mb-4 flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3 text-primaryLight" />
-                You're in Focus Mode!
+                {isFocusMode ? "You're in Focus Mode!" : "Focus Mode is OFF"}
               </p>
-              <button className="w-full py-2 border border-primary text-primaryLight hover:bg-primary/10 text-xs font-medium rounded-lg transition-colors">
-                Toggle Off
+              <button 
+                onClick={handleToggleFocus}
+                className={`w-full py-2 border text-xs font-medium rounded-lg transition-colors ${
+                  isFocusMode 
+                    ? "border-primary text-primaryLight hover:bg-primary/10" 
+                    : "border-gray-600 text-gray-400 hover:bg-gray-800"
+                }`}
+              >
+                {isFocusMode ? "Toggle Off" : "Toggle On"}
               </button>
             </>
           )}

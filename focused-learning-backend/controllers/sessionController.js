@@ -26,6 +26,7 @@ const startSession = async (req, res, next) => {
       roadmap: validRoadmapId,
       goal: goal || "",
       isActive: true,
+      sessionSource: "extension"
     });
 
     // Add to recent activity
@@ -157,6 +158,7 @@ const getSessions = async (req, res, next) => {
     const sessions = await Session.find({
       user: req.user._id,
       isActive: false,
+      sessionSource: "extension"
     })
       .sort({ createdAt: -1 })
       .limit(50);

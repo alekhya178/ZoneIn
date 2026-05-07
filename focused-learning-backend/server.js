@@ -32,7 +32,7 @@ app.use("/api/roadmap", require("./routes/roadmapRoutes"));
 app.use("/api/session", require("./routes/sessionRoutes"));
 app.use("/api/progress", require("./routes/progressRoutes"));
 app.use("/api/analytics", require("./routes/analyticsWebRoutes"));
-app.use("/api/sessions-web", require("./routes/sessionsWebRoutes")); // Renamed to avoid conflict with /api/session
+app.use("/api/sessions", require("./routes/sessionsWebRoutes"));
 
 // Socket.io for study session timer sync
 const studySessionNamespace = io.of("/study-session");

@@ -61,6 +61,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+// Listen for messages from the web dashboard
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  if (event.data && event.data.type === "ZONEIN_TOGGLE_FOCUS") {
+    const isFocus = event.data.isFocusMode;
+    chrome.runtime.sendMessage({ type: "TOGGLE_FOCUS_MODE", isFocusMode: isFocus });
+    
+    // Also update locally if on YouTube
+    if (window.location.host.includes("youtube.com")) {
+      isFocusMode = isFocus;
+      if (isFocusMode) applyFilters();
+      else removeFilters();
+    }
+  }
+});
+
 let debounceTimer;
 const observer = new MutationObserver(() => {
   if (!hasLoadedFilters) return;
