@@ -1,0 +1,199 @@
+const Session = require("../models/Session");
+const User = require("../models/User");
+const Roadmap = require("../models/Roadmap");
+const { calculateFocusScore } = require("../services/focusScoreService");
+const RecentActivity = require("../models/RecentActivity");
+
+// @desc    Start a new study session (called by extension when user opens YouTube)
+// @route   POST /api/session/start
+// @access  Private
+const startSession = async (req, res, next) => {
+  try {
+    const { roadmapId, goal, videoTitle, videoUrl } = req.body;
+
+    // End any existing active session before starting a new one
+    await Session.updateMany(
+      { user: req.user._id, isActive: true },
+      { isActive: false, endTime: new Date() }
+    );
+
+    // Validate roadmapId
+    const mongoose = require("mongoose");
+    const validRoadmapId = mongoose.Types.ObjectId.isValid(roadmapId) ? roadmapId : null;
+
+    const session = await Session.create({
+      user: req.user._id,
+      roadmap: validRoadmapId,
+      goal: goal || "",
+      isActive: true,
+    });
+
+    // Add to recent activity
+    const RecentActivity = require("../models/RecentActivity");
+    await RecentActivity.create({
+      user: req.user._id,
+      activityType: "watched",
+      title: videoTitle ? `Watched: ${videoTitle}` : "Started Study Session",
+      description: `Topic: ${goal || "General Focus"}`,
+      videoUrl: videoUrl || "",
+      occurredAt: new Date()
+    });
+
+    console.log(`SUCCESS: Activity logged for ${videoTitle || "New Session"}`);
+
+    res.status(201).json(session);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    End an active session & save stats from the extension
+// @route   PATCH /api/session/:id/end
+// @access  Private
+  const endSession = async (req, res, next) => {
+  try {
+    const { duration_seconds, distractionsBlocked, videosWatched } = req.body;
+
+    const session = await Session.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!session) {
+      return res.status(404).json({ message: "Session not found" });
+    }
+
+    const endTime = new Date();
+    
+    let durationMinutes = 0;
+    if (duration_seconds !== undefined) {
+      durationMinutes = Math.round(duration_seconds / 60);
+    } else {
+      durationMinutes = Math.round(
+        (endTime - session.startTime) / 1000 / 60
+      );
+    }
+
+    session.endTime = endTime;
+    session.durationMinutes = durationMinutes;
+    session.distractionsBlocked = distractionsBlocked || 0;
+    session.videosWatched = videosWatched || 0;
+    
+    // Focus score logic: duration_seconds is used if provided, otherwise computed seconds
+    const focusSeconds = duration_seconds !== undefined ? duration_seconds : (durationMinutes * 60);
+    session.focusScore = calculateFocusScore(session.distractionsBlocked, focusSeconds);
+    session.isActive = false;
+
+    await session.save();
+
+    // Auto-create RecentActivity
+    await RecentActivity.create({
+      user: req.user._id,
+      activityType: "session_completed",
+      title: "Completed Study Session",
+      description: `Topic: ${session.goal || "General"}. Focus Score: ${session.focusScore}`,
+      occurredAt: new Date()
+    });
+
+    // Update user's total study time and streak
+    const user = await User.findById(req.user._id);
+    user.totalStudyMinutes += durationMinutes;
+
+    // Update focus streak
+    const today = new Date().toDateString();
+    const lastStudy = user.lastStudyDate
+      ? new Date(user.lastStudyDate).toDateString()
+      : null;
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    if (lastStudy === today) {
+      // Already studied today, streak unchanged
+    } else if (lastStudy === yesterday) {
+      user.focusStreak += 1; // Consecutive day
+    } else {
+      user.focusStreak = 1; // Streak broken, restart
+    }
+
+    user.lastStudyDate = new Date();
+    await user.save();
+
+    res.json({
+      session,
+      userStats: {
+        totalStudyMinutes: user.totalStudyMinutes,
+        focusStreak: user.focusStreak,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get the current active session (extension polls this)
+// @route   GET /api/session/active
+// @access  Private
+const getActiveSession = async (req, res, next) => {
+  try {
+    const session = await Session.findOne({
+      user: req.user._id,
+      isActive: true,
+    }).populate("roadmap", "goal isActive");
+
+    if (!session) {
+      return res.status(404).json({ message: "No active session" });
+    }
+
+    res.json(session);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all past sessions for the user
+// @route   GET /api/session
+// @access  Private
+const getSessions = async (req, res, next) => {
+  try {
+    const sessions = await Session.find({
+      user: req.user._id,
+      isActive: false,
+    })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json(sessions);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update progress for an active session (heartbeat from extension)
+// @route   PATCH /api/session/:id/progress
+// @access  Private
+const updateSessionProgress = async (req, res, next) => {
+  try {
+    const { distractionsBlocked, watchTimeSeconds } = req.body;
+    const session = await Session.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+      isActive: true,
+    });
+
+    if (!session) {
+      return res.status(404).json({ message: "Active session not found" });
+    }
+
+    if (distractionsBlocked !== undefined) session.distractionsBlocked = distractionsBlocked;
+    
+    if (watchTimeSeconds !== undefined) {
+      session.durationMinutes = Math.round(watchTimeSeconds / 60);
+    }
+
+    await session.save();
+    res.json({ success: true, session });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { startSession, endSession, updateSessionProgress, getActiveSession, getSessions };
