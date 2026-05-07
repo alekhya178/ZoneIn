@@ -36,6 +36,7 @@ const Analytics = ({ user }) => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAllActivities, setShowAllActivities] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -207,13 +208,18 @@ const Analytics = ({ user }) => {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-surface rounded-xl p-6 border border-card animate-fade-in flex flex-col h-full" style={{ animationDelay: '0.3s' }}>
+        <div className="bg-surface rounded-xl p-6 border border-card animate-fade-in flex flex-col h-[380px]" style={{ animationDelay: '0.3s' }}>
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-bold text-white">Recent Activity</h3>
-            <button className="text-primaryLight text-xs hover:underline">View All</button>
+            <button 
+              onClick={() => setShowAllActivities(!showAllActivities)}
+              className="text-primaryLight text-xs hover:underline transition-all"
+            >
+              {showAllActivities ? "Show Less" : "View All"}
+            </button>
           </div>
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-            {activities.map((act) => (
+          <div className={`flex-1 pr-2 space-y-4 custom-scrollbar ${showAllActivities ? 'overflow-y-auto' : 'overflow-hidden'}`}>
+            {activities.slice(0, showAllActivities ? activities.length : 4).map((act) => (
               <div key={act._id} className="flex items-center justify-between group cursor-pointer p-2 rounded-lg hover:bg-background transition-colors">
                 <div className="flex items-center gap-4">
                   <div className={`p-2 rounded-lg ${act.activityType === 'watched' ? 'bg-orange-500/20 text-orange-400' : 'bg-green-500/20 text-green-400'}`}>
@@ -232,7 +238,14 @@ const Analytics = ({ user }) => {
                     ) : (
                       <h4 className="text-sm font-medium text-white mb-0.5">{act.title}</h4>
                     )}
-                    <p className="text-xs text-gray-500">{act.description || 'Activity recorded'} • {new Date(act.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-gray-500">{act.description.split('. Focus Score:')[0]} • {new Date(act.occurredAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                      {act.description.includes('Focus Score:') && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primaryLight border border-primary/20">
+                          Score: {act.description.split('Focus Score: ')[1]}%
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-primaryLight transition-colors" />

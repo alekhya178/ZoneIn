@@ -180,7 +180,7 @@ router.get("/recent-activity", protect, async (req, res, next) => {
   try {
     const activities = await RecentActivity.find({ user: req.user._id })
       .sort({ occurredAt: -1 })
-      .limit(10);
+      .limit(30);
     res.json(activities);
   } catch (error) {
     next(error);
