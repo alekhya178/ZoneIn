@@ -6,200 +6,153 @@ body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #121212;
+  background-color: #0f0f0f;
   color: #ffffff;
-  width: 340px;
+  width: 320px;
 }
 
-.container { padding: 18px 20px 20px; }
-.container.compact { min-height: 200px; padding-bottom: 15px; }
+.container { padding: 20px; }
 
 /* ── Screens ──────────────────────────────────────────────────── */
 .screen { display: block; }
 .hidden { display: none !important; }
 
-/* ── Header ───────────────────────────────────────────────────── */
-header {
+/* ── Auth Screen (Centered Action) ─────────────────────────────── */
+#authScreen {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 16px;
+  justify-content: center;
+  min-height: 240px;
+  text-align: center;
 }
 
-header h1 {
-  margin: 0;
+.logo-container {
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border-radius: 20px;
+  display: flex;
+  items-center: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(79, 172, 254, 0.3);
+}
+
+.logo-container svg {
+  width: 32px;
+  height: 32px;
+  color: white;
+}
+
+#authScreen h1 {
+  margin: 0 0 8px;
   font-size: 24px;
-  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   font-weight: 800;
   letter-spacing: -0.5px;
 }
 
-.tagline {
-  font-size: 12px;
-  color: #666;
-  font-weight: 500;
-  margin-top: 2px;
+#authScreen p {
+  font-size: 13px;
+  color: #888;
+  margin: 0 0 24px;
+  line-height: 1.5;
 }
 
-/* ── Toggle Switch ────────────────────────────────────────────── */
-.switch { position: relative; display: inline-block; width: 52px; height: 28px; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.slider {
-  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #333; transition: .4s;
-  box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-}
-.slider:before {
-  position: absolute; content: ""; height: 20px; width: 20px;
-  left: 4px; bottom: 4px; background-color: #fff; transition: .4s;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-input:checked + .slider { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-input:checked + .slider:before { transform: translateX(24px); }
-.slider.round { border-radius: 34px; }
-.slider.round:before { border-radius: 50%; }
-
-
-/* ── Stat Cards ───────────────────────────────────────────────── */
-main {
+#webLoginBtn {
+  width: 100%;
+  padding: 14px;
+  background: #ffffff;
+  color: #000000;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform 0.2s, background-color 0.2s;
 }
 
-.stat-card {
-  background-color: #1e1e1e;
-  padding: 12px 16px;
-  border-radius: 10px;
+#webLoginBtn:hover {
+  background-color: #f0f0f0;
+  transform: translateY(-2px);
+}
+
+#webLoginBtn:active {
+  transform: translateY(0);
+}
+
+/* ── App Screen Header ─────────────────────────────────────────── */
+header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border: 1px solid #2a2a2a;
-  transition: transform 0.2s, border-color 0.2s;
+  margin-bottom: 20px;
 }
 
-.stat-card:hover { transform: translateY(-1px); border-color: #4facfe44; }
-.stat-card .label { font-size: 13px; color: #a0a0a0; font-weight: 500; }
-.stat-card .value { font-size: 16px; font-weight: 700; color: #ffffff; }
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
 
-/* ── Footer Buttons ───────────────────────────────────────────── */
-footer {
+/* ── Toggle Switch ────────────────────────────────────────────── */
+.switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #222; transition: .4s;
+  border-radius: 34px;
+}
+.slider:before {
+  position: absolute; content: ""; height: 18px; width: 18px;
+  left: 4px; bottom: 4px; background-color: #fff; transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider { background-color: #4facfe; }
+input:checked + .slider:before { transform: translateX(22px); }
+
+/* ── Stats ─────────────────────────────────────────────────────── */
+main { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.stat-card {
+  background: #181818;
+  padding: 14px 16px;
+  border-radius: 12px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #222;
 }
+.stat-card .label { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card .value { font-size: 16px; font-weight: 700; color: #fff; }
 
-#dashboardBtn {
+/* ── Footer ────────────────────────────────────────────────────── */
+footer { display: flex; flex-direction: column; gap: 8px; }
+.btn-primary {
   width: 100%;
   padding: 12px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity 0.2s, transform 0.1s;
-  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.25);
-}
-
-#dashboardBtn:hover { opacity: 0.9; }
-#dashboardBtn:active { transform: scale(0.98); }
-
-.focus-warning {
-  font-size: 12px;
-  color: #ff4b4b;
-  text-align: center;
-  font-weight: 600;
-  margin-top: -2px;
-  margin-bottom: 2px;
-}
-
-/* ── Buttons ──────────────────────────────────────────────────── */
-.btn-primary {
-  width: 100%;
-  padding: 11px;
-  border: none;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: #4facfe;
   color: #fff;
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s;
 }
-.btn-primary:hover { opacity: 0.88; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .btn-ghost {
-  background: transparent;
-  border: 1px solid #333;
-  color: #888;
-  border-radius: 8px;
-  padding: 9px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
   width: 100%;
-}
-.btn-ghost:hover { color: #ccc; border-color: #555; }
-
-
-/* ── Auth Screen ──────────────────────────────────────────────── */
-.auth-tabs {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
-  background: #1a1a1a;
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.auth-tab {
-  flex: 1;
-  padding: 7px 0;
-  border: none;
-  border-radius: 8px;
+  padding: 10px;
   background: transparent;
-  color: #888;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.auth-tab.active {
-  background: #2a2a2a;
-  color: #fff;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.auth-form input {
-  background: #1e1e1e;
-  border: 1px solid #2a2a2a;
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #fff;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.auth-form input:focus { border-color: #4facfe; }
-.auth-form input::placeholder { color: #555; }
-
-.error-msg {
+  border: 1px solid #222;
+  color: #666;
+  border-radius: 10px;
   font-size: 12px;
-  color: #ff6b6b;
-  margin: 0;
-  text-align: center;
+  cursor: pointer;
 }
+.btn-ghost:hover { color: #fff; border-color: #444; }
+
+.focus-warning { font-size: 11px; color: #ff4b4b; text-align: center; margin-bottom: 10px; font-weight: 600; }

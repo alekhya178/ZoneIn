@@ -74,6 +74,9 @@ const register = async (name, email, password) => {
 
 const logout = async () => {
   await clearAuth();
+  if (chrome.action) {
+    chrome.action.setBadgeText({ text: "" });
+  }
 };
 
 // ─── Roadmap ───────────────────────────────────────────────────────────────────

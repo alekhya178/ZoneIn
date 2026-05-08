@@ -71,8 +71,13 @@ function App() {
   }
 
   // Strictly show the Auth screen if not logged in (unless on login/register routes)
-  const AuthOverlay = () => (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center overflow-hidden">
+  const AuthOverlay = () => {
+    useEffect(() => {
+      console.log("App Locked: User not found or logged out");
+    }, []);
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary rounded-full blur-[120px] animate-pulse"></div>
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primaryLight rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
@@ -114,34 +119,37 @@ function App() {
       </div>
     </div>
   );
+};
 
   return (
     <Router>
-      <div className="flex h-screen bg-background overflow-hidden relative">
+      <div className="flex h-screen bg-background overflow-hidden relative w-full items-center justify-center">
         <Routes>
           <Route path="/login" element={!user ? <Login setUser={setUser} /> : <Navigate to="/" />} />
           <Route path="/register" element={!user ? <Register setUser={setUser} /> : <Navigate to="/" />} />
           
           {/* Protected Routes */}
           <Route path="*" element={
-            user ? (
-              <div className="flex h-screen bg-background overflow-hidden relative w-full">
-                <Sidebar />
-                <div className="flex flex-col flex-1 overflow-hidden">
-                  <TopBar user={user} />
-                  <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+            <div className="flex h-screen bg-background overflow-hidden relative w-full">
+              {user && <Sidebar />}
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <TopBar user={user} />
+                <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+                  {user ? (
                     <Routes>
                       <Route path="/" element={<Home user={user} />} />
                       <Route path="/analytics" element={<Analytics user={user} />} />
                       <Route path="/study-sessions" element={<StudySessions user={user} />} />
                       <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
-                  </main>
-                </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center">
+                      <AuthOverlay />
+                    </div>
+                  )}
+                </main>
               </div>
-            ) : (
-              <AuthOverlay />
-            )
+            </div>
           } />
         </Routes>
       </div>

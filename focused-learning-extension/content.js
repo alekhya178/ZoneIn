@@ -80,6 +80,50 @@ window.addEventListener("message", (event) => {
   }
 });
 
+// Sync token from extension to web app (if on ZoneIn site)
+if (window.location.host.includes("localhost:5173") || window.location.host.includes("127.0.0.1:5173")) {
+  chrome.storage.local.get(["token"], (result) => {
+    if (result.token) {
+      if (localStorage.getItem("token") !== result.token) {
+        console.log("Syncing token from extension to web app...");
+        localStorage.setItem("token", result.token);
+        // We don't reload here to avoid loops, the App.jsx interval will catch it
+      }
+    } else {
+      if (localStorage.getItem("token")) {
+        console.log("Extension logged out, clearing web app token...");
+        localStorage.removeItem("token");
+      }
+    }
+  });
+
+  // Listen for storage changes in the extension
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.token) {
+      if (changes.token.newValue) {
+        localStorage.setItem("token", changes.token.newValue);
+      } else {
+        localStorage.removeItem("token");
+      }
+    }
+  });
+
+  // NEW: Sync FROM Web App TO Extension
+  const syncToExtension = () => {
+    const webToken = localStorage.getItem("token");
+    chrome.storage.local.get(["token"], (result) => {
+      if (webToken && webToken !== result.token && webToken !== "null" && webToken !== "undefined") {
+        console.log("Syncing token FROM web app TO extension...");
+        chrome.storage.local.set({ token: webToken });
+      }
+    });
+  };
+
+  // Run on load and every few seconds
+  syncToExtension();
+  setInterval(syncToExtension, 3000);
+}
+
 let debounceTimer;
 const observer = new MutationObserver(() => {
   if (!hasLoadedFilters) return;

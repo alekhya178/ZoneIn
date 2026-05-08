@@ -70,7 +70,12 @@ function checkAndResetDailyStats() {
   });
 }
 
-function updateToolbar(isFocus) {
+async function updateToolbar(isFocus) {
+  const token = await getToken();
+  if (!token) {
+    chrome.action.setBadgeText({ text: "" });
+    return;
+  }
   const text = isFocus ? "ON" : "OFF";
   const color = isFocus ? "#4facfe" : "#666666";
   chrome.action.setBadgeText({ text });
@@ -175,5 +180,10 @@ async function processHeartbeat(seconds) {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.isFocusMode) {
     updateToolbar(changes.isFocusMode.newValue);
+  }
+  if (changes.token) {
+    chrome.storage.local.get(["isFocusMode"], (res) => {
+      updateToolbar(res.isFocusMode !== false);
+    });
   }
 });

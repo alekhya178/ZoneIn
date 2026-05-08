@@ -9,6 +9,10 @@ const Sidebar = () => {
   const location = useLocation();
   const [isFocusMode, setIsFocusMode] = useState(true);
 
+  useEffect(() => {
+    console.log("ZoneIn Sidebar v2.1 Active");
+  }, []);
+
   // Sync with extension if available
   useEffect(() => {
     if (window.chrome && window.chrome.runtime) {
@@ -71,7 +75,7 @@ const Sidebar = () => {
       <div className="p-6 overflow-y-auto">
         <div className="mb-8">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold shadow-lg shadow-primary/30">Z</span>
+            <span className="w-8 h-8 rounded-lg bg-primaryLight flex items-center justify-center text-white font-bold shadow-lg shadow-primary/30">Z</span>
             ZoneIn
           </h1>
           <p className="text-xs text-gray-400 mt-1 pl-10">AI-Powered Learning</p>
