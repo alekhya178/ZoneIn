@@ -119,32 +119,43 @@ router.get("/weekly-hours", protect, async (req, res, next) => {
   }
 });
 
-// GET /api/analytics/monthly-hours
+// GET /api/analytics/monthly-hours?month=4&year=2026 (month is 0-indexed)
 router.get("/monthly-hours", protect, async (req, res, next) => {
   try {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const month = req.query.month !== undefined ? parseInt(req.query.month) : now.getMonth();
+    const year = req.query.year !== undefined ? parseInt(req.query.year) : now.getFullYear();
+
+    const startOfMonth = new Date(year, month, 1);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
     const sessions = await Session.find({
       user: req.user._id,
       startTime: { $gte: startOfMonth, $lte: endOfMonth }
     });
 
-    // Group by week of the month (Week 1, Week 2, etc.)
+    // Group by actual calendar week of the month (Week 1, Week 2, etc.)
+    // Week starts on Monday to align with the weekly chart
+    const getWeekOfMonth = (date) => {
+      const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      let dayOfWeekOfFirst = firstDayOfMonth.getDay(); // 0 is Sunday
+      const offset = (dayOfWeekOfFirst === 0 ? 6 : dayOfWeekOfFirst - 1);
+      return Math.ceil((date.getDate() + offset) / 7);
+    };
+
     const weeklyMinutes = {};
     
     sessions.forEach(s => {
       const date = new Date(s.startTime);
-      const weekNumber = Math.ceil(date.getDate() / 7);
+      const weekNumber = getWeekOfMonth(date);
       const key = `Week ${weekNumber}`;
       if (!weeklyMinutes[key]) weeklyMinutes[key] = 0;
       weeklyMinutes[key] += (s.durationMinutes || 0);
     });
 
-    // Generate up to 5 weeks for the month
-    const totalDaysInMonth = endOfMonth.getDate();
-    const maxWeeks = Math.ceil(totalDaysInMonth / 7);
+    // Generate all weeks for the month
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const maxWeeks = getWeekOfMonth(lastDayOfMonth);
     
     const data = [];
     for (let i = 1; i <= maxWeeks; i++) {
