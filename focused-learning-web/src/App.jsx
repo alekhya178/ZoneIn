@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import { fetchApi } from './api';
 import { Lock, Zap, ArrowRight, ExternalLink } from 'lucide-react';
+import Chatbot from './components/Chatbot/Chatbot';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -153,6 +154,7 @@ function App() {
           } />
         </Routes>
       </div>
+      <Chatbot />
     </Router>
   );
 }

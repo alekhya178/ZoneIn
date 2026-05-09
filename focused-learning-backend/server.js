@@ -33,6 +33,7 @@ app.use("/api/session", require("./routes/sessionRoutes"));
 app.use("/api/progress", require("./routes/progressRoutes"));
 app.use("/api/analytics", require("./routes/analyticsWebRoutes"));
 app.use("/api/sessions", require("./routes/sessionsWebRoutes"));
+app.use("/api", require("./chatbot/chatRoutes"));
 
 // Socket.io for study session timer sync
 const studySessionNamespace = io.of("/study-session");
