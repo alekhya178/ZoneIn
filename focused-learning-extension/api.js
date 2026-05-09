@@ -1,7 +1,7 @@
 // api.js — ZoneIn Extension Backend API Helper
 // Shared by background.js, popup.js
 
-const API_BASE = "http://127.0.0.1:5000/api"; // Change to your deployed URL
+const API_BASE = "https://backend-zone-lw04.onrender.com/api"; // Updated to Render
 
 // ─── Token helpers (chrome.storage.local) ─────────────────────────────────────
 

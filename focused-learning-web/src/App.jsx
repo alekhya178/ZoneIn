@@ -7,6 +7,8 @@ import Analytics from './pages/Analytics';
 import StudySessions from './pages/StudySessions';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Roadmap from './pages/Roadmap';
+import Notebook from './pages/Notebook';
 import { fetchApi } from './api';
 import { Lock, Zap, ArrowRight, ExternalLink } from 'lucide-react';
 import Chatbot from './components/Chatbot/Chatbot';
@@ -140,7 +142,8 @@ function App() {
                     <Routes>
                       <Route path="/" element={<Home user={user} />} />
                       <Route path="/analytics" element={<Analytics user={user} />} />
-                      <Route path="/study-sessions" element={<StudySessions user={user} />} />
+                      <Route path="/roadmap" element={<Roadmap user={user} />} />
+                      <Route path="/notebook" element={<Notebook user={user} />} />
                       <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
                   ) : (

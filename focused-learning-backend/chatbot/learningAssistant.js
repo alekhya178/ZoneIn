@@ -1,9 +1,9 @@
 const { OpenAI } = require('openai');
 
 // Note: Ensure OPENAI_API_KEY is set in your environment variables (.env)
-const openai = new OpenAI({
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-});
+}) : null;
 
 async function getLearningAssistantReply(message, topic) {
   const systemPrompt = `You are a focused learning tutor for the FocusLearn platform.
@@ -15,6 +15,9 @@ Do NOT answer questions outside the topic of ${topic}.
 If the student asks something off-topic, gently redirect them back to ${topic}.`;
 
   try {
+    if (!openai) {
+      return "The AI assistant is currently unavailable as the OpenAI API key is not configured. Please contact the administrator.";
+    }
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [

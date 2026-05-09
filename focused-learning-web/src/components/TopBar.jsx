@@ -5,12 +5,27 @@ import { useLocation } from 'react-router-dom';
 const TopBar = ({ user }) => {
   const location = useLocation();
   const isSessions = location.pathname.startsWith('/study-sessions');
-
+  const isRoadmap = location.pathname.startsWith('/roadmap');
+  const isNotebook = location.pathname.startsWith('/notebook');
+  const isAnalytics = location.pathname.startsWith('/analytics');
   const isHome = location.pathname === '/';
-  const title = isSessions ? "Study Sessions" : "Dashboard";
-  const subtitle = isSessions 
-    ? "Track your study sessions and maintain consistency."
-    : "Welcomed back! Stay consistent and achieve your goals.";
+
+  let title = "Dashboard";
+  let subtitle = "Welcomed back! Stay consistent and achieve your goals.";
+
+  if (isSessions) {
+    title = "Study Sessions";
+    subtitle = "Track your study sessions and maintain consistency.";
+  } else if (isRoadmap) {
+    title = "Learning Roadmap";
+    subtitle = "Your personalized path to mastering new skills.";
+  } else if (isNotebook) {
+    title = "My Notebook";
+    subtitle = "Access your study notes and AI-generated summaries.";
+  } else if (isAnalytics) {
+    title = "Learning Analytics";
+    subtitle = "Visualize your progress and optimize your focus.";
+  }
 
   return (
     <header className="h-20 bg-background border-b border-card px-8 flex items-center justify-between z-10 sticky top-0">

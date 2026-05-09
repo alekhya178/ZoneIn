@@ -41,8 +41,8 @@ const Sidebar = () => {
       { name: "Home", path: "/", icon: Home },
     ]},
     { section: "LEARNING", items: [
-      { name: "Roadmap", path: "#", icon: BookOpen },
-      { name: "Notebook", path: "#", icon: NotebookIcon },
+      { name: "Roadmap", path: "/roadmap", icon: BookOpen },
+      { name: "Notebook", path: "/notebook", icon: NotebookIcon },
     ]},
     { section: "ANALYTICS", items: [
       { name: "Learning Analytics", path: "/analytics", icon: BarChart2 },
