@@ -14,6 +14,18 @@ const userSchema = new mongoose.Schema(
     contact: String,
     state: String,
     country: String,
+    bio: {
+      type: String,
+      default: "Learning to grow and growing to learn."
+    },
+    dailyGoal: {
+      type: String,
+      default: "60" // 60 minutes
+    },
+    learningGoals: {
+      type: [String],
+      default: ["Master New Skills", "Stay Consistent"]
+    },
     email: {
       type: String,
       required: [true, "Email is required"],

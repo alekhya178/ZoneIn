@@ -18,32 +18,25 @@ const protect = async (req, res, next) => {
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
     const { email, name, uid } = decodedToken;
 
     // Find user by email or firebaseUid
     let user = await User.findOne({ email });
     
     if (!user) {
-      console.log("Backend: Creating new user for:", email, name);
-      user = await User.create({
-        name: name || email.split('@')[0],
-        email,
-        password: Math.random().toString(36).slice(-10),
-        firebaseUid: uid
-      });
-    } else {
-      // If user exists but name is generic or missing, update it from token
-      if (name && (!user.name || user.name === email.split('@')[0] || user.name === 'Learner')) {
-        console.log("Backend: Syncing name for existing user:", user.email, "->", name);
-        user.name = name;
-        await user.save();
-      }
-      // Also ensure firebaseUid is linked
-      if (!user.firebaseUid) {
-        user.firebaseUid = uid;
-        await user.save();
-      }
+      console.log("Backend: Access denied, user not found in MongoDB for:", email);
+      return res.status(401).json({ message: "User account no longer exists." });
+    }
+
+    // Sync name and firebaseUid if needed
+    if (name && (!user.name || user.name === email.split('@')[0] || user.name === 'Learner')) {
+      user.name = name;
+      await user.save();
+    }
+    if (!user.firebaseUid) {
+      user.firebaseUid = uid;
+      await user.save();
     }
 
     req.user = user;

@@ -1,22 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, Mail, Phone, MapPin, Calendar, Edit2, CheckCircle, 
   ChevronRight, Trash2, Video, Shield, Settings, 
-  Award, FileText, Activity, Zap, Search, Bell, Play, Lock, Info
+  Award, FileText, Activity, Zap, Search, Bell, Play, Lock, Info, X, Globe, CheckCircle2
 } from 'lucide-react';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip 
 } from 'recharts';
 import { io } from 'socket.io-client';
 import { fetchApi } from '../api';
+import { auth } from '../firebase';
+import { sendPasswordResetEmail, verifyPasswordResetCode, confirmPasswordReset } from 'firebase/auth';
 
-const Profile = ({ user: initialUser }) => {
+const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(initialUser);
   const [activeTab, setActiveTab] = useState('Overview');
   const [loading, setLoading] = useState(true);
+  
+  // Password Reset States
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetStep, setResetStep] = useState(1); // 1: OTP, 2: New Password
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState(null);
+
+  // Account Deletion States
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+  
+  // Edit Profile States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    firstName: '',
+    lastName: '',
+    preferredName: '',
+    contact: '',
+    state: '',
+    country: '',
+    bio: '',
+    learningGoals: []
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState(null);
+
   const [stats, setStats] = useState({
     completedTopics: 0,
     inProgressTopics: 0,
@@ -27,6 +65,193 @@ const Profile = ({ user: initialUser }) => {
   const [heatmapData, setHeatmapData] = useState([]);
   const [streak, setStreak] = useState(0);
   const [dailyActivity, setDailyActivity] = useState([]);
+
+  const handleSendOTP = async () => {
+    if (!user?.email) return;
+    setResetLoading(true);
+    setPasswordError(null);
+    try {
+      const res = await fetchApi('/auth/send-password-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: user.email })
+      });
+      setResetSent(true);
+      setShowResetModal(true);
+      setResetStep(1);
+    } catch (err) {
+      console.error("OTP Error:", err);
+      setPasswordError("Failed to send verification code.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleVerifyAndReset = async (e) => {
+    e.preventDefault();
+    if (resetStep === 1) {
+      if (otp.length !== 6) {
+        setPasswordError("Please enter the 6-digit code.");
+        return;
+      }
+      setResetStep(2);
+      setPasswordError(null);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError(null);
+
+    try {
+      await fetchApi('/auth/reset-password-with-otp', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: user.email,
+          otp,
+          newPassword
+        })
+      });
+      setPasswordSuccess(true);
+      setTimeout(() => {
+        setPasswordSuccess(false);
+        setShowResetModal(false);
+        setResetStep(1);
+        setOtp('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }, 4000);
+    } catch (err) {
+      console.error(err);
+      setPasswordError(err.message || "Failed to update password. Code may be invalid.");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    if (otp.length !== 6) {
+      setPasswordError("Please enter the 6-digit code.");
+      return;
+    }
+    
+    setPasswordLoading(true);
+    setPasswordError(null);
+    
+    try {
+      await fetchApi('/auth/verify-password-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: user.email, otp })
+      });
+      setResetStep(2);
+      setPasswordError(null);
+    } catch (err) {
+      console.error("Verify OTP Error:", err);
+      setPasswordError(err.message || "Invalid or expired verification code.");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleSendDeleteOTP = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await fetchApi('/auth/send-delete-otp', { method: 'POST' });
+      setShowDeleteModal(true);
+      setDeleteOtp('');
+      setDeleteSuccess(false);
+    } catch (err) {
+      console.error("Delete OTP Error:", err);
+      alert("Failed to send deletion code. Please try again.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleVerifyAndDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (deleteOtp.length !== 6) {
+      setDeleteError("Please enter the 6-digit code.");
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await fetchApi('/auth/delete-account', {
+        method: 'POST',
+        body: JSON.stringify({ otp: deleteOtp })
+      });
+      setDeleteSuccess(true);
+      setTimeout(() => {
+        // Notify extension
+        window.postMessage({ type: "ZONEIN_LOGOUT" }, "*");
+        
+        localStorage.removeItem("token");
+        localStorage.removeItem("authUser");
+        sessionStorage.clear();
+        auth.signOut();
+        if (setGlobalUser) setGlobalUser(null);
+        window.location.href = '/login'; 
+      }, 3000);
+    } catch (err) {
+      console.error("Delete Account Error:", err);
+      setDeleteError(err.message || "Failed to delete account. Code may be invalid.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const openEditModal = () => {
+    setEditFormData({
+      firstName: user?.firstName || '',
+      lastName: user?.lastName || '',
+      preferredName: user?.preferredName || '',
+      contact: user?.contact || '',
+      state: user?.state || '',
+      country: user?.country || '',
+      bio: user?.bio || '',
+      learningGoals: user?.learningGoals || []
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    setEditError(null);
+
+    try {
+      const updatedUser = await fetchApi('/profile/me', {
+        method: 'PUT',
+        body: JSON.stringify(editFormData)
+      });
+      
+      setUser(updatedUser);
+      if (setGlobalUser) setGlobalUser(updatedUser);
+      setShowEditModal(false);
+      alert("Profile updated successfully!");
+    } catch (err) {
+      console.error("Update Profile Error:", err);
+      setEditError(err.message || "Failed to update profile.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
 
   const loadProfileData = async () => {
     try {
@@ -59,7 +284,6 @@ const Profile = ({ user: initialUser }) => {
 
   useEffect(() => {
     loadProfileData();
-
     // Socket.io for real-time updates
     const socket = io('http://127.0.0.1:5000');
     
@@ -87,7 +311,7 @@ const Profile = ({ user: initialUser }) => {
     return () => {
       socket.disconnect();
     };
-  }, [initialUser?._id]);
+  }, [initialUser?._id, location]);
 
   const roadmapPieData = [
     { name: 'Completed', value: stats?.completedTopics || 0, color: '#7c3aed' },
@@ -109,6 +333,223 @@ const Profile = ({ user: initialUser }) => {
 
   return (
     <div className="flex-1 bg-background text-white p-8 overflow-y-auto custom-scrollbar">
+      {/* Password Reset Modal */}
+      <AnimatePresence>
+        {showResetModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !passwordLoading && setShowResetModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-surface border border-card rounded-[2.5rem] p-10 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+              
+              <button 
+                onClick={() => !passwordLoading && setShowResetModal(false)}
+                className="absolute top-6 right-6 p-2 text-gray-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {passwordSuccess ? (
+                <div className="text-center py-6">
+                  <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="w-10 h-10 text-green-400" />
+                  </div>
+                  <h3 className="text-2xl font-black mb-2">Password Changed!</h3>
+                  <p className="text-gray-400 text-sm">Your account is now secured. Use your new password for your next login.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primaryLight">
+                      {resetStep === 1 ? <Mail className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">
+                        {resetStep === 1 ? "Verify Your Email" : "Create New Password"}
+                      </h3>
+                      <p className="text-xs text-gray-400">
+                        {resetStep === 1 
+                          ? `Enter the 6-digit code sent to ${user?.email}`
+                          : "Enter and confirm your new password."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {passwordError && (
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">
+                      {passwordError}
+                    </div>
+                  )}
+
+                  <form onSubmit={resetStep === 1 ? handleVerifyOTP : handleVerifyAndReset} className="space-y-4">
+                    {resetStep === 1 ? (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Verification Code</label>
+                        <input 
+                          type="text"
+                          maxLength={6}
+                          placeholder="000000"
+                          value={otp}
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                          className="w-full bg-card border border-white/5 rounded-2xl py-4 px-5 text-white focus:outline-none focus:border-primary transition-all text-2xl font-black tracking-[0.5em] text-center"
+                          required
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">New Password</label>
+                          <input 
+                            type="password"
+                            placeholder="••••••••"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full bg-card border border-white/5 rounded-2xl py-4 px-5 text-white focus:outline-none focus:border-primary transition-all text-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Confirm Password</label>
+                          <input 
+                            type="password"
+                            placeholder="••••••••"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full bg-card border border-white/5 rounded-2xl py-4 px-5 text-white focus:outline-none focus:border-primary transition-all text-sm"
+                            required
+                          />
+                        </div>
+                      </>
+                    )}
+                    
+                    <button 
+                      type="submit"
+                      disabled={passwordLoading}
+                      className="w-full py-4 bg-primary hover:bg-primaryDark text-white font-black rounded-2xl transition-all flex items-center justify-center gap-3 group shadow-xl shadow-primary/40 mt-6"
+                    >
+                      {passwordLoading ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        resetStep === 1 ? "Verify & Continue" : "Save New Password"
+                      )}
+                    </button>
+                  </form>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Account Deletion Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !deleteLoading && !deleteSuccess && setShowDeleteModal(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-surface border border-red-500/20 rounded-[2.5rem] p-10 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+              
+              {!deleteSuccess && (
+                <button 
+                  onClick={() => !deleteLoading && setShowDeleteModal(false)}
+                  className="absolute top-6 right-6 p-2 text-gray-500 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+
+              {deleteSuccess ? (
+                <div className="text-center py-6">
+                  <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Trash2 className="w-10 h-10 text-red-400" />
+                  </div>
+                  <h3 className="text-2xl font-black mb-2 text-red-400">Account Deleted</h3>
+                  <p className="text-gray-400 text-sm">Your account and all data have been permanently removed. Redirecting you to login...</p>
+                  <div className="mt-8 flex justify-center">
+                    <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-400">
+                      <Shield className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-red-400">Confirm Deletion</h3>
+                      <p className="text-xs text-gray-400">
+                        Enter the 6-digit code sent to {user?.email} to permanently delete your account.
+                      </p>
+                    </div>
+                  </div>
+
+                  {deleteError && (
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">
+                      {deleteError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleVerifyAndDeleteAccount} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Verification Code</label>
+                      <input 
+                        type="text"
+                        maxLength={6}
+                        placeholder="000000"
+                        value={deleteOtp}
+                        onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, ''))}
+                        className="w-full bg-card border border-white/5 rounded-2xl py-4 px-5 text-white focus:outline-none focus:border-red-500 transition-all text-2xl font-black tracking-[0.5em] text-center"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
+                      <p className="text-[10px] text-red-400/70 leading-relaxed">
+                        <span className="font-black uppercase mr-1">Warning:</span> 
+                        This action is irreversible. All your progress, notes, and roadmaps will be lost forever.
+                      </p>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={deleteLoading}
+                      className="w-full py-4 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-3 group shadow-xl shadow-red-500/20 mt-6"
+                    >
+                      {deleteLoading ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        "Permanently Delete My Account"
+                      )}
+                    </button>
+                  </form>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Header Info */}
       <div className="mb-8">
         <h1 className="text-3xl font-black tracking-tight mb-2">My Profile</h1>
@@ -155,13 +596,16 @@ const Profile = ({ user: initialUser }) => {
               <p className="flex items-center justify-center md:justify-start gap-2 text-gray-400">
                 <Calendar className="w-4 h-4 text-primaryLight" /> Joined on {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Recently'}
               </p>
-              <p className="flex items-center justify-center md:justify-start gap-2 text-gray-400">
+              <p className="flex items-center justify-center md:justify-start gap-2 text-gray-400 text-sm">
                 <MapPin className="w-4 h-4 text-primaryLight" /> {user?.state ? `${user.state}, ${user.country}` : user?.country || 'India'}
               </p>
             </div>
           </div>
 
-          <button className="px-6 py-3 border border-primary/30 rounded-2xl text-sm font-bold text-primaryLight hover:bg-primary/10 transition-all flex items-center gap-2 group whitespace-nowrap">
+          <button 
+            onClick={openEditModal}
+            className="px-6 py-3 border border-primary/30 rounded-2xl text-sm font-bold text-primaryLight hover:bg-primary/10 transition-all flex items-center gap-2 group whitespace-nowrap"
+          >
             <Edit2 className="w-4 h-4" /> Edit Profile
           </button>
         </motion.div>
@@ -202,8 +646,22 @@ const Profile = ({ user: initialUser }) => {
               </div>
             </div>
           </div>
-          <button className="w-full mt-8 py-4 border border-white/5 bg-card/50 rounded-2xl text-sm font-bold text-gray-400 hover:text-white hover:bg-card transition-all flex items-center justify-center gap-2">
-            <Lock className="w-4 h-4" /> Change Password
+          <button 
+            onClick={handleSendOTP}
+            disabled={resetLoading || resetSent}
+            className={`w-full mt-8 py-4 border border-white/5 rounded-2xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              resetSent 
+                ? "bg-green-500/20 text-green-400 border-green-500/30" 
+                : "bg-card/50 text-gray-400 hover:text-white hover:bg-card"
+            }`}
+          >
+            {resetLoading ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            ) : resetSent ? (
+              <><CheckCircle className="w-4 h-4" /> Code Sent to Email</>
+            ) : (
+              <><Lock className="w-4 h-4" /> Change Password</>
+            )}
           </button>
         </motion.div>
       </div>
@@ -552,10 +1010,18 @@ const Profile = ({ user: initialUser }) => {
             <h3 className="text-xl font-bold text-red-400 mb-6 flex items-center gap-2">
               Danger Zone <Shield className="w-5 h-5" />
             </h3>
-            <button className="w-full flex items-center justify-between p-4 bg-red-500/10 rounded-2xl hover:bg-red-500/20 transition-all group">
+            <button 
+              onClick={handleSendDeleteOTP}
+              disabled={deleteLoading}
+              className="w-full flex items-center justify-between p-4 bg-red-500/10 rounded-2xl hover:bg-red-500/20 transition-all group"
+            >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
-                  <Trash2 className="w-5 h-5" />
+                  {deleteLoading ? (
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <Trash2 className="w-5 h-5" />
+                  )}
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-bold text-red-400">Delete Account</p>
@@ -567,6 +1033,205 @@ const Profile = ({ user: initialUser }) => {
           </div>
         </div>
       </div>
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {showEditModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !editLoading && setShowEditModal(false)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-2xl bg-[#0a0a12]/90 backdrop-blur-3xl border border-white/5 rounded-[3rem] p-8 md:p-12 shadow-2xl overflow-hidden my-auto"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
+              
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Edit <span className="text-primaryLight">Profile</span></h2>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Update your personal information</p>
+                </div>
+                <button 
+                  onClick={() => setShowEditModal(false)}
+                  className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 transition-colors text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {editError && (
+                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs font-bold">
+                  {editError}
+                </div>
+              )}
+
+              <form onSubmit={handleEditSubmit} className="space-y-6 relative z-10">
+                {/* Identity Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <User className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">First Name</label>
+                        <input 
+                          name="firstName"
+                          value={editFormData.firstName}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="Your first name"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <User className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Last Name</label>
+                        <input 
+                          name="lastName"
+                          value={editFormData.lastName}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="Your last name"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nickname & Contact */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <Zap className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Preferred Name</label>
+                        <input 
+                          name="preferredName"
+                          value={editFormData.preferredName}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="Nickname"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <Phone className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Contact No.</label>
+                        <input 
+                          name="contact"
+                          value={editFormData.contact}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="+91 00000 00000"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <MapPin className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">State / Province</label>
+                        <input 
+                          name="state"
+                          value={editFormData.state}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="Your state"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors">
+                        <Globe className="w-4 h-4 text-primaryLight" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Country</label>
+                        <input 
+                          name="country"
+                          value={editFormData.country}
+                          onChange={handleEditInputChange}
+                          className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium"
+                          placeholder="Your country"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bio Section */}
+                <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 transition-all focus-within:border-primary/50 group">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 group-focus-within:bg-primary/20 transition-colors mt-1">
+                      <FileText className="w-4 h-4 text-primaryLight" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Short Bio</label>
+                      <textarea 
+                        name="bio"
+                        value={editFormData.bio}
+                        onChange={handleEditInputChange}
+                        className="w-full bg-transparent border-none p-0 text-white placeholder:text-gray-600 outline-none text-sm font-medium min-h-[80px] resize-none"
+                        placeholder="Tell us about yourself..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 py-4 border border-white/5 rounded-2xl text-sm font-bold text-gray-500 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={editLoading}
+                    className="flex-[2] py-4 bg-primary hover:bg-primaryDark text-white font-black rounded-2xl transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3"
+                  >
+                    {editLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <>Update Profile <CheckCircle className="w-5 h-5" /></>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
+import Chatbot from './components/Chatbot/Chatbot';
 import Home from './pages/Home';
 import Analytics from './pages/Analytics';
 import StudySessions from './pages/StudySessions';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import RoadmapList from './pages/roadmap/RoadmapList';
 import RoadmapDetail from './pages/roadmap/RoadmapDetail';
 import TopicDetail from './pages/roadmap/TopicDetail';
@@ -133,6 +135,8 @@ function App() {
         <Routes>
           <Route path="/login" element={!user ? <Login setUser={setUser} /> : <Navigate to="/" />} />
           <Route path="/register" element={!user ? <Register setUser={setUser} /> : <Navigate to="/" />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+
           
           <Route path="*" element={
             <div className="flex h-screen bg-background overflow-hidden relative w-full">
@@ -142,25 +146,18 @@ function App() {
                 <main className={`flex-1 overflow-y-auto scroll-smooth ${!user ? '' : 'p-6'}`}>
                   <Routes>
                     <Route path="/" element={user ? <Home user={user} /> : <Landing />} />
-                    
-                    {/* Protected Routes - only accessible if user is logged in */}
-                    {user ? (
-                      <>
-                        <Route path="/analytics" element={<Analytics user={user} />} />
-                        <Route path="/study-sessions" element={<StudySessions user={user} />} />
-                        <Route path="/roadmaps" element={<RoadmapList user={user} />} />
-                        <Route path="/roadmap/:roadmapId" element={<RoadmapDetail />} />
-                        <Route path="/roadmap/:roadmapId/topic/:topicId" element={<TopicDetail />} />
-                        <Route path="/notebook" element={<Notebook />} />
-                        <Route path="/profile" element={<Profile user={user} />} />
-                      </>
-                    ) : (
-                      <Route path="*" element={<Navigate to="/" />} />
-                    )}
+                    <Route path="/analytics" element={user ? <Analytics user={user} /> : <Navigate to="/" />} />
+                    <Route path="/study-sessions" element={user ? <StudySessions user={user} /> : <Navigate to="/" />} />
+                    <Route path="/roadmaps" element={user ? <RoadmapList user={user} /> : <Navigate to="/" />} />
+                    <Route path="/roadmap/:roadmapId" element={<RoadmapDetail />} />
+                    <Route path="/roadmap/:roadmapId/topic/:topicId" element={<TopicDetail />} />
+                    <Route path="/notebook" element={<Notebook />} />
+                    <Route path="/profile" element={user ? <Profile user={user} setUser={setUser} /> : <Navigate to="/" />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>
                 </main>
               </div>
+              {user && <Chatbot />}
             </div>
           } />
         </Routes>

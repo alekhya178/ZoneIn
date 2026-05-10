@@ -35,6 +35,7 @@ const TopicDetail = () => {
       const res = await fetchApi(`/roadmap-web/${roadmapId}/topic/${topicId}`);
       setData(res);
       setNotesState(res.notes || "");
+      localStorage.setItem('currentTopic', res.topicTitle);
     } catch (err) {
       if (!silent) setError(err.message);
     } finally {
@@ -46,6 +47,7 @@ const TopicDetail = () => {
     loadData();
     return () => {
       if (trackingIntervalRef.current) clearInterval(trackingIntervalRef.current);
+      localStorage.removeItem('currentTopic');
     };
   }, [roadmapId, topicId]);
 
