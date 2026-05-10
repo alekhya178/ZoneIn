@@ -218,7 +218,7 @@ const StudySessions = () => {
                             <span>Progress</span>
                             <span>{Math.round((activeSession.subtopics.filter(s => s.isCompleted).length / activeSession.subtopics.length) * 100)}%</span>
                           </div>
-                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-primary transition-all duration-500" 
                               style={{ width: `${(activeSession.subtopics.filter(s => s.isCompleted).length / activeSession.subtopics.length) * 100}%` }}
@@ -229,7 +229,7 @@ const StudySessions = () => {
                               <button 
                                 key={i}
                                 onClick={() => toggleSubtopic(i, !st.isCompleted)}
-                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all border ${st.isCompleted ? 'bg-primary/20 border-primary/40 text-primaryLight' : 'bg-white/5 border-white/10 text-gray-500'}`}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all border ${st.isCompleted ? 'bg-primary/20 border-primary/40 text-primaryLight' : 'bg-white/5 border-white/10 text-gray-500 hover:border-white/20'}`}
                               >
                                 {st.isCompleted ? <CheckCircle className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
                                 {st.name}
@@ -259,7 +259,36 @@ const StudySessions = () => {
                   <td className="py-4 px-6 text-sm text-gray-300">
                     {new Date(session.startTime || session.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </td>
-                  <td className="py-4 px-6 text-sm font-medium text-white">{session.topic || session.goal || 'Untitled Session'}</td>
+                  <td className="py-4 px-6 text-sm font-medium text-white">
+                    <div className="flex flex-col gap-2">
+                      <span className="font-bold">{session.topic || session.goal || 'Untitled Session'}</span>
+                      {session.subtopics && session.subtopics.length > 0 && (
+                        <div className="space-y-2 w-full max-w-[200px]">
+                          <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-gray-600 font-bold">
+                            <span>Completion</span>
+                            <span>{Math.round((session.subtopics.filter(s => s.isCompleted).length / session.subtopics.length) * 100)}%</span>
+                          </div>
+                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-green-500/50 transition-all duration-500" 
+                              style={{ width: `${(session.subtopics.filter(s => s.isCompleted).length / session.subtopics.length) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {session.subtopics.map((st, i) => (
+                              <div 
+                                key={i}
+                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border ${st.isCompleted ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-white/5 border-white/10 text-gray-600'}`}
+                              >
+                                {st.isCompleted ? <CheckCircle className="w-2.5 h-2.5" /> : <Circle className="w-2.5 h-2.5" />}
+                                {st.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-4 px-6 text-sm text-gray-300">{session.durationMinutes}m</td>
                   <td className="py-4 px-6 text-sm text-gray-300 text-center">{session.distractionsBlocked}</td>
                   <td className="py-4 px-6 text-center">

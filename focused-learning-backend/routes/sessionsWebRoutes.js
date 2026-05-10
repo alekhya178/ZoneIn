@@ -3,6 +3,8 @@ const router = express.Router();
 const Session = require("../models/Session");
 const SubtopicProgress = require("../models/SubtopicProgress");
 const User = require("../models/User");
+const Roadmap = require("../models/Roadmap");
+const TopicEngagement = require("../models/TopicEngagement");
 const RecentActivity = require("../models/RecentActivity");
 const { calculateFocusScore } = require("../services/focusScoreService");
 const { calculateStreak } = require("../services/streakService");
@@ -173,6 +175,64 @@ router.post("/:id/end", protect, async (req, res, next) => {
     
     // Update streak
     await calculateStreak(req.user._id);
+
+    // NEW: Sync with Roadmap Progress
+    // If the session goal matches a topic in an active roadmap, update that topic's progress
+    try {
+      const activeRoadmap = await Roadmap.findOne({ user: req.user._id, isActive: true });
+      if (activeRoadmap) {
+        const topic = activeRoadmap.topics.find(t => t.title.toLowerCase() === (session.goal || "").toLowerCase());
+        if (topic) {
+          // Calculate progress from subtopics
+          const totalSubtopics = session.subtopics ? session.subtopics.length : 0;
+          const completedSubtopics = session.subtopics ? session.subtopics.filter(s => s.isCompleted).length : 0;
+          const sessionProgress = totalSubtopics > 0 ? Math.round((completedSubtopics / totalSubtopics) * 100) : 100;
+
+          // Find or create engagement
+          let engagement = await TopicEngagement.findOne({
+            user: req.user._id,
+            roadmap: activeRoadmap._id,
+            topicId: topic._id.toString()
+          });
+
+          if (!engagement) {
+            engagement = new TopicEngagement({
+              user: req.user._id,
+              roadmap: activeRoadmap._id,
+              topicId: topic._id.toString(),
+              topicTitle: topic.title
+            });
+          }
+
+          // Update engagement score and completion
+          // If subtopics exist, use their completion percentage to influence the engagement score
+          if (totalSubtopics > 0) {
+            engagement.activeTimePercent = Math.max(engagement.activeTimePercent || 0, sessionProgress);
+          } else {
+            // If no subtopics, assume completing the session means the topic is well-engaged
+            engagement.activeTimePercent = 100;
+          }
+
+          engagement.engagementScore = Math.min(100, Math.round(
+            (engagement.watchPercentage || 0) * 0.4 + (engagement.activeTimePercent || 0) * 0.3 + (engagement.quizScore || 0) * 0.3
+          ));
+
+          // If session progress is 100%, consider marking topic as completed if engagement score is high enough
+          if (sessionProgress === 100 && engagement.engagementScore >= 80) {
+            engagement.isCompleted = true;
+            engagement.completedAt = engagement.completedAt || new Date();
+            topic.isCompleted = true;
+            topic.completedAt = topic.completedAt || engagement.completedAt;
+            await activeRoadmap.save();
+          }
+
+          await engagement.save();
+          console.log(`Synced session "${session.goal}" with roadmap topic "${topic.title}"`);
+        }
+      }
+    } catch (syncErr) {
+      console.error("Failed to sync session with roadmap:", syncErr);
+    }
 
     res.json(session);
   } catch (error) {
