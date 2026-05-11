@@ -50,8 +50,8 @@ const Sidebar = () => {
     ]},
     { section: "ACCOUNT", items: [
       { name: "Profile", path: "/profile", icon: User },
-      { name: "Settings", path: "#", icon: Settings },
-      { name: "Contact Us", path: "#", icon: Mail },
+      { name: "Settings", path: "/settings", icon: Settings },
+      { name: "Contact Us", path: "/contact", icon: Mail },
       { name: "Sign Out", path: "#", icon: LogOut },
     ]}
   ];
@@ -71,7 +71,7 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="w-64 bg-surface border-r border-card flex flex-col justify-between">
+    <div className="w-64 flex-shrink-0 bg-surface border-r border-card flex flex-col justify-between">
       <div className="p-6 overflow-y-auto">
         <div className="mb-8">
           <h1 className="text-xl font-bold text-white flex items-center gap-2">

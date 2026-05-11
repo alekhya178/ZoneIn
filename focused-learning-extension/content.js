@@ -39,7 +39,13 @@ chrome.storage.local.get(["isFocusMode"], async (result) => {
   if (result.isFocusMode !== undefined) isFocusMode = result.isFocusMode;
   await fetchActiveGoal();
   hasLoadedFilters = true;
-  if (isFocusMode) applyFilters();
+  if (isFocusMode) {
+    applyFilters();
+    // Start session even if no video is playing yet
+    if (window.location.host.includes("youtube.com")) {
+      chrome.runtime.sendMessage({ type: "PAGE_LOADED", url: window.location.href });
+    }
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -138,13 +144,22 @@ if (window.location.host.includes("localhost:5173") || window.location.host.incl
 }
 
 let debounceTimer;
-const observer = new MutationObserver(() => {
+const observer = new MutationObserver((mutations) => {
   if (!hasLoadedFilters) return;
+  
+  // Ignore mutations caused by our own script to prevent loops
+  const isOurMutation = mutations.every(m => 
+    (m.target.dataset && m.target.dataset.zoneinBlocked) || 
+    (m.target.id === 'zonein-styles') ||
+    (m.target.id === 'zonein-focus-message')
+  );
+  if (isOurMutation) return;
+
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     attachVideoListeners();
     if (isFocusMode) applyFilters();
-  }, 150);
+  }, 250); // Increased debounce for stability
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
@@ -236,7 +251,10 @@ function incrementBlockedCount(count) {
   if (count <= 0) return;
   chrome.storage.local.get(["blockedCount"], (result) => {
     if (chrome.runtime.lastError) return;
-    chrome.storage.local.set({ blockedCount: (result.blockedCount || 0) + count });
+    let newCount = (result.blockedCount || 0) + count;
+    // Cap at 1000 to prevent runaway counters
+    if (newCount > 1000) newCount = 1000;
+    chrome.storage.local.set({ blockedCount: newCount });
   });
 }
 
@@ -267,7 +285,6 @@ function applyFilters() {
       el.style.display = "none";
       el.dataset.zoneinBlocked = "true";
       hiddenElements.add(el);
-      newlyBlocked++;
     });
   });
 
@@ -278,7 +295,6 @@ function applyFilters() {
       el.style.display = "none";
       el.dataset.zoneinBlocked = "true";
       hiddenElements.add(el);
-      newlyBlocked++;
     });
   });
 
@@ -290,7 +306,6 @@ function applyFilters() {
         el.style.display = "none";
         el.dataset.zoneinBlocked = "true";
         hiddenElements.add(el);
-        newlyBlocked++;
       });
     });
     renderFocusOverlay();
@@ -315,6 +330,7 @@ function applyFilters() {
     "code with harry", "telusko", "krish naik"
   ];
 
+  // 4. Video Grid (Most impactful blocks)
   document.querySelectorAll("ytd-video-renderer, ytd-rich-item-renderer").forEach((video) => {
     const titleEl = video.querySelector("#video-title, #video-title-link");
     const channelEl = video.querySelector("#channel-name, #text.ytd-channel-name");
@@ -339,7 +355,7 @@ function applyFilters() {
         video.style.display = "none";
         video.dataset.zoneinBlocked = "true";
         hiddenElements.add(video);
-        newlyBlocked++;
+        newlyBlocked++; // Only count video removals as "distractions"
       }
       else if (isRelevant && video.dataset.zoneinBlocked) {
         video.style.display = "";
@@ -349,7 +365,9 @@ function applyFilters() {
     }
   });
 
-  incrementBlockedCount(newlyBlocked);
+  if (newlyBlocked > 0) {
+    incrementBlockedCount(newlyBlocked);
+  }
 }
 
 function renderFocusOverlay() {

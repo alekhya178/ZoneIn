@@ -54,9 +54,9 @@ const Dashboard = ({ user, setUser }) => {
         if (statsRes.ok) {
           setStats(prev => ({
             ...prev,
-            streak: statsData.streak !== undefined ? statsData.streak : prev.streak,
-            blocked: Math.max(prev.blocked, statsData.totalBlocked || 0),
-            watchTimeSeconds: Math.max(prev.watchTimeSeconds, statsData.totalWatchTime || 0),
+            streak: statsData.streak || prev.streak,
+            blocked: statsData.totalBlocked !== undefined ? statsData.totalBlocked : prev.blocked,
+            watchTimeSeconds: statsData.totalWatchTime !== undefined ? statsData.totalWatchTime : prev.watchTimeSeconds,
             dailyActivity: statsData.dailyActivity || prev.dailyActivity,
             activeRoadmap: roadmapData,
             loading: false
@@ -70,10 +70,24 @@ const Dashboard = ({ user, setUser }) => {
 
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.local.get(['blockedCount', 'todayWatchTime', 'weeklyActivity', 'isFocusMode'], (result) => {
+        let blocked = result.blockedCount || 0;
+        let watchTime = result.todayWatchTime || 0;
+        
+        // Emergency cleanup for runaway counts in local storage
+        if (blocked > 1000) {
+          blocked = 0;
+          chrome.storage.local.set({ blockedCount: 0 });
+        }
+        // Cap watch time to sane daily limit (e.g. 16 hours)
+        if (watchTime > 16 * 3600) {
+          watchTime = 0;
+          chrome.storage.local.set({ todayWatchTime: 0 });
+        }
+
         setStats(prev => ({
           ...prev,
-          blocked: result.blockedCount || 0,
-          watchTimeSeconds: result.todayWatchTime || 0,
+          blocked: blocked,
+          watchTimeSeconds: watchTime,
           dailyActivity: result.dailyActivity || [],
           isFocusMode: result.isFocusMode !== false
         }));
@@ -81,7 +95,15 @@ const Dashboard = ({ user, setUser }) => {
       });
       
       const listener = (changes) => {
-        if (changes.blockedCount) setStats(s => ({ ...s, blocked: changes.blockedCount.newValue }));
+        if (changes.blockedCount) {
+          const newVal = changes.blockedCount.newValue;
+          if (newVal > 1000) {
+            chrome.storage.local.set({ blockedCount: 0 });
+            setStats(s => ({ ...s, blocked: 0 }));
+          } else {
+            setStats(s => ({ ...s, blocked: newVal }));
+          }
+        }
         if (changes.todayWatchTime) setStats(s => ({ ...s, watchTimeSeconds: changes.todayWatchTime.newValue }));
         if (changes.isFocusMode) setStats(s => ({ ...s, isFocusMode: changes.isFocusMode.newValue }));
         if (changes.dailyActivity) setStats(s => ({ ...s, dailyActivity: changes.dailyActivity.newValue }));

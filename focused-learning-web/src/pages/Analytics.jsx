@@ -107,7 +107,7 @@ const Analytics = ({ user }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Clock}
-          title="Total Study Hours"
+          title="Today's Study"
           value={summary?.totalStudyHours}
           subLabel={`${summary?.weeklyStudyHoursChange >= 0 ? '▲' : '▼'} ${Math.abs(summary?.weeklyStudyHoursChange || 0).toFixed(1)}h this week`}
           colorClass="bg-primary text-primary"
@@ -121,7 +121,7 @@ const Analytics = ({ user }) => {
         />
         <StatCard
           icon={ShieldAlert}
-          title="Distractions Blocked"
+          title="Today's Blocked"
           value={summary?.distractionsBlocked || 0}
           subLabel={`${summary?.weeklyDistractionsChange || 0} this week`}
           colorClass="bg-red-500 text-red-500"

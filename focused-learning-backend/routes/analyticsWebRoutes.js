@@ -7,6 +7,13 @@ const User = require("../models/User");
 const { calculateStreak } = require("../services/streakService");
 const protect = require("../middleware/auth").protect;
 
+// Helper: get start of day
+const getStartOfDay = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 // GET /api/analytics/summary
 router.get("/summary", protect, async (req, res, next) => {
   try {
@@ -31,46 +38,61 @@ router.get("/summary", protect, async (req, res, next) => {
 
     const sessions = await Session.find({ user: req.user._id });
     
-    // Calculate overall stats
+    // Calculate stats
+    const todayStart = getStartOfDay();
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
     let totalStudyMinutes = 0;
-    let distractionsBlocked = 0;
-    let totalScore = 0;
-
-    sessions.forEach(s => {
-      totalStudyMinutes += (s.durationMinutes || 0);
-      distractionsBlocked += (s.distractionsBlocked || 0);
-      totalScore += (s.focusScore || 0);
-    });
-
-    const avgFocusScore = sessions.length > 0 ? Math.round(totalScore / sessions.length) : 0;
-    
-    // Calculate weekly change
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-    
+    let todayStudyMinutes = 0;
     let thisWeekMinutes = 0;
     let lastWeekMinutes = 0;
-    let thisWeekScoreSum = 0;
-    let lastWeekScoreSum = 0;
-    let thisWeekSessionsCount = 0;
-    let lastWeekSessionsCount = 0;
+
+    let totalDistractions = 0;
+    let todayDistractions = 0;
     let thisWeekDistractions = 0;
-    
+
+    let totalScore = 0;
+    let todayScore = 0;
+    let todaySessionsCount = 0;
+    let thisWeekScoreSum = 0;
+    let thisWeekSessionsCount = 0;
+    let lastWeekScoreSum = 0;
+    let lastWeekSessionsCount = 0;
+
     sessions.forEach(s => {
       const d = new Date(s.startTime);
-      if (d >= oneWeekAgo && d <= now) {
-        thisWeekMinutes += (s.durationMinutes || 0);
-        thisWeekScoreSum += (s.focusScore || 0);
-        thisWeekDistractions += (s.distractionsBlocked || 0);
+      // Sane caps: Max 8 hours per session, max 500 distractions
+      const sessionMinutes = Math.min(480, (s.durationMinutes || 0));
+      const sessionDistractions = Math.min(500, (s.distractionsBlocked || 0));
+      const sessionScore = (s.focusScore || 0);
+      
+      totalStudyMinutes += sessionMinutes;
+      totalDistractions += sessionDistractions;
+      totalScore += sessionScore;
+
+      if (d >= todayStart) {
+        todayStudyMinutes += sessionMinutes;
+        todayDistractions += sessionDistractions;
+        todayScore += sessionScore;
+        todaySessionsCount++;
+      }
+
+      if (d >= oneWeekAgo) {
+        thisWeekMinutes += sessionMinutes;
+        thisWeekDistractions += sessionDistractions;
+        thisWeekScoreSum += sessionScore;
         thisWeekSessionsCount++;
-      } else if (d >= twoWeeksAgo && d < oneWeekAgo) {
-        lastWeekMinutes += (s.durationMinutes || 0);
-        lastWeekScoreSum += (s.focusScore || 0);
+      } else if (d >= twoWeeksAgo) {
+        lastWeekMinutes += sessionMinutes;
+        lastWeekScoreSum += sessionScore;
         lastWeekSessionsCount++;
       }
     });
 
+    const todayAvgFocusScore = todaySessionsCount > 0 ? Math.round(todayScore / todaySessionsCount) : 0;
     const thisWeekAvgScore = thisWeekSessionsCount > 0 ? Math.round(thisWeekScoreSum / thisWeekSessionsCount) : 0;
     const lastWeekAvgScore = lastWeekSessionsCount > 0 ? Math.round(lastWeekScoreSum / lastWeekSessionsCount) : 0;
     
@@ -87,11 +109,15 @@ router.get("/summary", protect, async (req, res, next) => {
     });
 
     res.json({
-      totalStudyHours: `${Math.floor(totalStudyMinutes / 60)}h ${totalStudyMinutes % 60}m`,
-      focusScore: avgFocusScore,
-      distractionsBlocked,
+      // We return today's stats as the primary values to satisfy the "reset to 0" requirement
+      totalStudyHours: `${Math.floor(todayStudyMinutes / 60)}h ${todayStudyMinutes % 60}m`,
+      allTimeStudyHours: `${Math.floor(totalStudyMinutes / 60)}h ${totalStudyMinutes % 60}m`,
+      focusScore: todayAvgFocusScore || thisWeekAvgScore || 0, // Fallback to weekly if today is empty
+      allTimeFocusScore: sessions.length > 0 ? Math.round(totalScore / sessions.length) : 0,
+      distractionsBlocked: todayDistractions,
+      allTimeDistractionsBlocked: totalDistractions,
       topicsCompleted,
-      totalTopics: totalTopics || 1, // avoid division by zero
+      totalTopics: totalTopics || 1,
       weeklyStudyHoursChange: parseFloat(weeklyStudyHoursChange),
       weeklyFocusScoreChange,
       weeklyDistractionsChange: thisWeekDistractions
@@ -253,15 +279,33 @@ router.get("/dashboard/stats", protect, async (req, res, next) => {
     const sessions = await Session.find({ user: userId });
     const { currentStreak, dailyActivity } = await calculateStreak(userId);
 
+    // today is already defined and set to start of day above
+    
     let totalDistractions = 0;
+    let todayDistractions = 0;
+    let totalMinutes = 0;
+    let todayMinutes = 0;
+
     sessions.forEach(s => {
-      totalDistractions += (s.distractionsBlocked || 0);
+      // Sane caps: Max 8 hours per session, max 500 distractions
+      const sessionMinutes = Math.min(480, (s.durationMinutes || 0));
+      const sessionDistractions = Math.min(500, (s.distractionsBlocked || 0));
+      
+      totalDistractions += sessionDistractions;
+      totalMinutes += sessionMinutes;
+
+      if (new Date(s.startTime) >= today) {
+        todayDistractions += sessionDistractions;
+        todayMinutes += sessionMinutes;
+      }
     });
 
     res.json({
       streak: currentStreak,
-      totalBlocked: totalDistractions,
-      totalWatchTime: (user.totalStudyMinutes || 0) * 60, // Extension expects seconds
+      totalBlocked: todayDistractions, // Changed to today's blocked for extension dashboard
+      totalWatchTime: todayMinutes * 60, // Changed to today's watch time in seconds
+      allTimeBlocked: totalDistractions,
+      allTimeWatchTime: totalMinutes * 60,
       dailyActivity: dailyActivity
     });
   } catch (error) {

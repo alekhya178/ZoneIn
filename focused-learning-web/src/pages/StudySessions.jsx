@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Disc, Timer, Play, Pause, Square, Trash2, CheckCircle, Circle } from 'lucide-react';
+import { Calendar, Clock, Disc, Timer, Play, Pause, Square, Trash2, CheckCircle, Circle, ShieldAlert } from 'lucide-react';
 import SessionModal from '../components/SessionModal';
 import { fetchApi } from '../api';
 
@@ -17,7 +17,7 @@ const StatCard = ({ icon: Icon, title, value, colorClass }) => (
   </div>
 );
 
-const StudySessions = () => {
+const StudySessions = ({ user }) => {
   const [summary, setSummary] = useState(null);
   const [history, setHistory] = useState([]);
   const [page, setPage] = useState(1);
@@ -27,17 +27,20 @@ const StudySessions = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [privacySettings, setPrivacySettings] = useState(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [sumRes, histRes] = await Promise.all([
+      const [sumRes, histRes, privacyRes] = await Promise.all([
         fetchApi('/sessions/summary'),
-        fetchApi(`/sessions/history?page=${page}&limit=20`)
+        fetchApi(`/sessions/history?page=${page}&limit=20`),
+        fetchApi('/privacy')
       ]);
       setSummary(sumRes);
       setHistory(histRes.sessions || []);
       setTotalPages(histRes.totalPages || 1);
+      setPrivacySettings(privacyRes);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -69,17 +72,50 @@ const StudySessions = () => {
     let interval;
     if (activeSession && !activeSession.isPaused) {
       interval = setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
+        setElapsedSeconds(prev => {
+          const next = prev + 1;
+          
+          // Break Reminder Logic
+          if (user?.notifications?.sessionBreakReminder) {
+            const intervalText = user.notifications.breakInterval || "45 Minutes";
+            const intervalSecs = (parseInt(intervalText) || 45) * 60;
+            
+            // If we just hit the exact interval (or multiples)
+            if (next > 0 && next % intervalSecs === 0) {
+              if (Notification.permission === "granted") {
+                new Notification("Time for a break!", {
+                  body: `You've been studying for ${intervalText}. Take 5 minutes to rest!`,
+                  icon: "/logo192.png"
+                });
+              } else {
+                alert(`☕ Time for a break! You've been studying for ${intervalText}.`);
+              }
+            }
+          }
+          
+          return next;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeSession]);
+  }, [activeSession, user]);
+
+  // Request Notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
 
   const togglePause = async () => {
     if (!activeSession) return;
     try {
       const endpoint = activeSession.isPaused ? 'resume' : 'pause';
-      const updated = await fetchApi(`/sessions/${activeSession._id}/${endpoint}`, { method: 'PATCH' });
+      const body = endpoint === 'pause' ? { elapsedSeconds } : {};
+      const updated = await fetchApi(`/sessions/${activeSession._id}/${endpoint}`, { 
+        method: 'PATCH',
+        body
+      });
       setActiveSession(updated);
     } catch (err) {
       console.error("Failed to pause/resume", err);
@@ -91,7 +127,7 @@ const StudySessions = () => {
     try {
       await fetchApi(`/sessions/${activeSession._id}/end`, {
         method: 'POST',
-        body: JSON.stringify({ durationSeconds: elapsedSeconds, distractionsBlocked: 0 })
+        body: { durationSeconds: elapsedSeconds, distractionsBlocked: 0 }
       });
       setActiveSession(null);
       fetchData();
@@ -146,6 +182,15 @@ const StudySessions = () => {
 
   return (
     <div className="space-y-6 pb-20 w-full max-w-[1600px] mx-auto px-2 lg:px-6 relative min-h-full">
+      {privacySettings && privacySettings.activeTracking === false && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-center gap-4 text-yellow-500 animate-fade-in mb-6">
+          <ShieldAlert className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm">
+            Active Tracking is OFF. Your study time and session history are not being recorded. 
+            <a href="/settings" className="ml-2 underline font-bold hover:text-yellow-400">Enable it in Privacy Settings</a>.
+          </p>
+        </div>
+      )}
       {/* Tab Bar & Action */}
       <div className="flex justify-between items-center mb-8 border-b border-card pb-4">
         <div className="flex gap-6">
@@ -240,15 +285,33 @@ const StudySessions = () => {
                       )}
                     </div>
                   </td>
-                  <td className="py-4 px-6 text-sm font-mono text-primaryLight tracking-wider flex items-center gap-3">
-                    <span className="w-16">{formatTime(elapsedSeconds)}</span>
-                    <button onClick={togglePause} className="p-1.5 rounded bg-surface hover:bg-card border border-gray-700 text-gray-300 transition-colors" title={activeSession.isPaused ? 'Resume' : 'Pause'}>
-                      {activeSession.isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-                    </button>
-                    <button onClick={endActiveSession} className="p-1.5 rounded bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 transition-colors" title="End Session">
-                      <Square className="w-4 h-4 fill-current" />
-                    </button>
+                  <td className="py-4 px-6 text-sm font-mono tracking-wider">
+                    <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-2xl border border-white/5 shadow-inner">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mb-1">Elapsed Time</span>
+                        <span className="text-2xl font-black text-primaryLight drop-shadow-[0_0_8px_rgba(139,92,246,0.4)] font-mono">
+                          {formatTime(elapsedSeconds)}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 ml-auto">
+                        <button 
+                          onClick={togglePause} 
+                          className={`p-2 rounded-xl transition-all border ${activeSession.isPaused ? 'bg-primary/20 border-primary/40 text-primaryLight hover:bg-primary/30' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}`} 
+                          title={activeSession.isPaused ? 'Resume' : 'Pause'}
+                        >
+                          {activeSession.isPaused ? <Play className="w-5 h-5 fill-current" /> : <Pause className="w-5 h-5" />}
+                        </button>
+                        <button 
+                          onClick={endActiveSession} 
+                          className="p-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 transition-all group" 
+                          title="End Session"
+                        >
+                          <Square className="w-5 h-5 group-hover:fill-current transition-all" />
+                        </button>
+                      </div>
+                    </div>
                   </td>
+
                   <td className="py-4 px-6 text-sm text-gray-300 text-center">-</td>
                   <td className="py-4 px-6 text-center">-</td>
                   <td className="py-4 px-6 text-right">-</td>

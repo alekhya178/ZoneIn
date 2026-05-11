@@ -1,18 +1,81 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  --font-scale: 1;
+  --background: #0f0f1a;
+  --surface: #13131f;
+  --card: #1a1a2e;
+  --primary: #7c3aed;
+  --primary-light: #8b5cf6;
+  --text: #ffffff;
+  --text-muted: #9ca3af;
+  --border: rgba(255, 255, 255, 0.05);
+  --sidebar: #13131f;
+}
+
+/* Text-only scaling system */
+.text-xs { font-size: calc(0.75rem * var(--font-scale)) !important; }
+.text-sm { font-size: calc(0.875rem * var(--font-scale)) !important; }
+.text-base { font-size: calc(1rem * var(--font-scale)) !important; }
+.text-lg { font-size: calc(1.125rem * var(--font-scale)) !important; }
+.text-xl { font-size: calc(1.25rem * var(--font-scale)) !important; }
+.text-2xl { font-size: calc(1.5rem * var(--font-scale)) !important; }
+.text-3xl { font-size: calc(1.875rem * var(--font-scale)) !important; }
+.text-4xl { font-size: calc(2.25rem * var(--font-scale)) !important; }
+
+
+.light-mode {
+  --background: #f1f5f9;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --primary: #4f46e5;
+  --primary-light: #6366f1;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: rgba(0, 0, 0, 0.1);
+  --sidebar: #ffffff;
+}
+
+.purple-mode {
+  --background: #1e1b4b;
+  --surface: #312e81;
+  --card: #3730a3;
+  --primary: #a78bfa;
+  --primary-light: #c4b5fd;
+  --text: #ede9fe;
+  --text-muted: #c4b5fd;
+  --border: rgba(255, 255, 255, 0.1);
+  --sidebar: #312e81;
+}
+
 @theme {
-  --color-background: #0f0f1a;
-  --color-surface: #13131f;
-  --color-card: #1a1a2e;
-  --color-primary: #7c3aed;
-  --color-primaryLight: #8b5cf6;
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primaryLight: var(--primary-light);
+  --color-text: var(--text);
+  --color-textMuted: var(--text-muted);
+  --color-border: var(--border);
+  --color-sidebar: var(--sidebar);
   --font-sans: 'Inter', sans-serif;
 }
 
+/* Global Text Visibility Fix */
+h1, h2, h3, h4, h5, h6, p, label {
+  color: var(--text);
+  transition: color 0.3s ease;
+}
+
+.text-gray-400, .text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
 body {
-  @apply bg-background text-white font-sans m-0 p-0;
+  @apply bg-background text-text font-sans m-0 p-0;
   min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Custom scrollbar for deep dark theme */

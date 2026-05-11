@@ -7,6 +7,8 @@ const VideoWatch = require("../models/VideoWatch");
 const RecentActivity = require("../models/RecentActivity");
 const RoadmapProgress = require("../models/RoadmapProgress");
 const Note = require("../models/Note");
+const User = require("../models/User");
+const { sendGoalCompletionEmail } = require("../services/mailService");
 
 const axios = require("axios");
 const { YoutubeTranscript } = require("youtube-transcript");
@@ -79,21 +81,27 @@ router.get("/recent-activity", protect, async (req, res) => {
   try {
     const engagements = await TopicEngagement.find({ user: req.user._id }).sort({ updatedAt: -1 }).limit(10);
     const regularActivity = await RecentActivity.find({ user: req.user._id }).sort({ occurredAt: -1 }).limit(10);
-    
-    const mappedEngagements = engagements.map(e => {
-      let type = "watched";
-      let time = e.updatedAt;
-      let videoId = (e.videos && e.videos.length > 0) ? e.videos[e.videos.length - 1].videoId : null;
-      
-      if (e.isCompleted && e.completedAt) {
-        type = "completed";
-        time = e.completedAt;
-      } else if (e.quizAttempts && e.quizAttempts.length > 0) {
-        type = "quiz";
-        time = e.quizAttempts[e.quizAttempts.length - 1].attemptedAt;
-      }
-      return { title: e.topicTitle, type, occurredAt: time, videoId };
-    });
+
+    const mappedEngagements = engagements
+      .map(e => {
+        let type = null;
+        let time = e.updatedAt;
+        let videoId = (e.videos && e.videos.length > 0) ? e.videos[e.videos.length - 1].videoId : null;
+        
+        if (e.isCompleted && e.completedAt) {
+          type = "completed";
+          time = e.completedAt;
+        } else if (e.quizAttempts && e.quizAttempts.length > 0) {
+          type = "quiz";
+          time = e.quizAttempts[e.quizAttempts.length - 1].attemptedAt;
+        } else if (e.watchPercentage > 0) {
+          type = "watched";
+        }
+        
+        if (!type) return null;
+        return { title: e.topicTitle, type, occurredAt: time, videoId };
+      })
+      .filter(Boolean);
     
     const mappedRegular = regularActivity.map(a => ({
       title: a.title,
@@ -223,16 +231,37 @@ router.patch("/:roadmapId/topic/:topicId/complete", protect, async (req, res) =>
     engagement.completedAt = engagement.isCompleted ? new Date() : null;
     await engagement.save();
 
+    const wasCompleteBefore = roadmap.completedTopics === roadmap.totalTopics;
     topic.isCompleted = engagement.isCompleted;
     topic.completedAt = engagement.completedAt;
     await roadmap.save();
+
+    // Trigger Notification only if the ENTIRE roadmap just became complete
+    const isCompleteNow = roadmap.completedTopics === roadmap.totalTopics;
+    if (!wasCompleteBefore && isCompleteNow && engagement.isCompleted) {
+      const user = await User.findById(req.user._id);
+      if (user && user.notifications?.goalCompletionNotification) {
+        sendGoalCompletionEmail(user.email, user.name, roadmap.goal);
+      }
+    }
 
     const activityData = {
       title: topic.title,
       type: engagement.isCompleted ? "completed" : "watched",
       occurredAt: engagement.completedAt || new Date()
     };
-    if (req.io) req.io.to(req.user._id.toString()).emit("activity", activityData);
+
+    // Only emit/log 'watched' if tracking is enabled
+    const userForPrivacy = await User.findById(req.user._id);
+    const isWatchTrackingOff = userForPrivacy && userForPrivacy.privacySettings && userForPrivacy.privacySettings.watchHistoryTracking === false;
+
+    if (req.io) {
+      if (activityData.type === "watched" && isWatchTrackingOff) {
+        // Skip emitting 'watched' activity if tracking is off
+      } else {
+        req.io.to(req.user._id.toString()).emit("activity", activityData);
+      }
+    }
 
     res.json(engagement);
   } catch (error) {
@@ -311,6 +340,15 @@ router.post("/:roadmapId/topic/:topicId/video-watch", protect, async (req, res) 
   if (!videoId || !totalSeconds) return res.status(400).json({ message: "Missing videoId or totalSeconds" });
 
   try {
+    // Check privacy settings
+    const user = await User.findById(req.user._id);
+    if (user && user.privacySettings && user.privacySettings.watchHistoryTracking === false) {
+      return res.status(200).json({ 
+        message: "Watch history tracking is disabled in your privacy settings.",
+        trackingDisabled: true 
+      });
+    }
+
     const videoWatch = await VideoWatch.findOneAndUpdate(
       { user: req.user._id, topicId: req.params.topicId, videoId },
       { 

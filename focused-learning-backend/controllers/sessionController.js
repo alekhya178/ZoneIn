@@ -13,10 +13,15 @@ const startSession = async (req, res, next) => {
     const { roadmapId, goal, videoTitle, videoUrl } = req.body;
 
     // End any existing active session before starting a new one
-    await Session.updateMany(
-      { user: req.user._id, isActive: true },
-      { isActive: false, endTime: new Date() }
-    );
+    const activeSessions = await Session.find({ user: req.user._id, isActive: true });
+    for (const activeSession of activeSessions) {
+      activeSession.isActive = false;
+      activeSession.endTime = new Date();
+      // Ensure focus score is finalized
+      const durationSeconds = activeSession.durationMinutes * 60;
+      activeSession.focusScore = calculateFocusScore(activeSession.distractionsBlocked, durationSeconds);
+      await activeSession.save();
+    }
 
     // Validate roadmapId
     const mongoose = require("mongoose");
@@ -38,18 +43,20 @@ const startSession = async (req, res, next) => {
       activityTitle = `Watched: ${videoTitle}`;
     }
 
-    // Add to recent activity
-    const RecentActivity = require("../models/RecentActivity");
-    await RecentActivity.create({
-      user: req.user._id,
-      activityType: "watched",
-      title: activityTitle,
-      description: `Topic: ${goal || "General Focus"}`,
-      videoUrl: videoUrl || "",
-      occurredAt: new Date()
-    });
-
-    console.log(`SUCCESS: Activity logged for ${videoTitle || "New Session"}`);
+    // Add to recent activity only if watch tracking is enabled
+    const userSettings = await User.findById(req.user._id);
+    if (userSettings && userSettings.privacySettings && userSettings.privacySettings.watchHistoryTracking !== false) {
+      const RecentActivity = require("../models/RecentActivity");
+      await RecentActivity.create({
+        user: req.user._id,
+        activityType: "watched",
+        title: activityTitle,
+        description: `Topic: ${goal || "General Focus"}`,
+        videoUrl: videoUrl || "",
+        occurredAt: new Date()
+      });
+      console.log(`SUCCESS: Activity logged for ${videoTitle || "New Session"}`);
+    }
 
     res.status(201).json(session);
   } catch (error) {
@@ -182,10 +189,23 @@ const updateSessionProgress = async (req, res, next) => {
       return res.status(404).json({ message: "Active session not found" });
     }
 
-    if (distractionsBlocked !== undefined) session.distractionsBlocked = distractionsBlocked;
+    if (distractionsBlocked !== undefined) {
+      session.distractionsBlocked = Math.min(500, distractionsBlocked);
+    }
     
     if (watchTimeSeconds !== undefined) {
-      session.durationMinutes = Math.round(watchTimeSeconds / 60);
+      const oldMinutes = session.durationMinutes || 0;
+      const newMinutes = Math.round(watchTimeSeconds / 60);
+      const delta = newMinutes - oldMinutes;
+      
+      if (delta > 0) {
+        await User.findByIdAndUpdate(req.user._id, { $inc: { totalStudyMinutes: delta } });
+      }
+      
+      session.durationMinutes = newMinutes;
+      session.watchTimeSeconds = watchTimeSeconds;
+      // Calculate live focus score
+      session.focusScore = calculateFocusScore(session.distractionsBlocked, watchTimeSeconds);
     }
 
     await session.save();

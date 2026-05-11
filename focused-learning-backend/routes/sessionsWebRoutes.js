@@ -106,9 +106,10 @@ router.post("/start", protect, async (req, res, next) => {
 // PATCH /api/sessions/:id/pause
 router.patch("/:id/pause", protect, async (req, res, next) => {
   try {
+    const { elapsedSeconds } = req.body;
     const session = await Session.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id, isActive: true },
-      { isPaused: true },
+      { isPaused: true, elapsedSeconds: elapsedSeconds || 0 },
       { new: true }
     );
     if (!session) return res.status(404).json({ message: "Session not found" });
@@ -121,12 +122,13 @@ router.patch("/:id/pause", protect, async (req, res, next) => {
 // PATCH /api/sessions/:id/resume
 router.patch("/:id/resume", protect, async (req, res, next) => {
   try {
-    const session = await Session.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id, isActive: true },
-      { isPaused: false },
-      { new: true }
-    );
+    const session = await Session.findOne({ _id: req.params.id, user: req.user._id, isActive: true });
     if (!session) return res.status(404).json({ message: "Session not found" });
+
+    // Reset startTime to (Now - elapsedSeconds) so the total elapsed is preserved
+    session.isPaused = false;
+    session.startTime = new Date(Date.now() - (session.elapsedSeconds * 1000));
+    await session.save();
     res.json(session);
   } catch (error) {
     next(error);
@@ -146,6 +148,14 @@ router.post("/:id/end", protect, async (req, res, next) => {
     });
 
     if (!session) return res.status(404).json({ message: "Session not found or already ended" });
+    
+    // Check privacy settings before saving history
+    const user = await User.findById(req.user._id);
+    if (user && user.privacySettings && user.privacySettings.activeTracking === false) {
+      // SILENT SKIP: End the session by deleting it or just returning success without saving stats
+      await Session.findByIdAndDelete(req.params.id);
+      return res.json({ message: "Session ended. Data not saved due to privacy settings.", trackingDisabled: true });
+    }
 
     const endTime = new Date();
     const durationMins = Math.round((durationSeconds || 0) / 60);
@@ -168,7 +178,6 @@ router.post("/:id/end", protect, async (req, res, next) => {
     });
 
     // Update user stats
-    const user = await User.findById(req.user._id);
     user.totalStudyMinutes += durationMins;
     user.lastStudyDate = new Date();
     await user.save();

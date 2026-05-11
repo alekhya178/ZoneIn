@@ -86,7 +86,6 @@ const Notebook = () => {
               <option value="topic_notes">Topic Notes</option>
               <option value="manual_note">Manual Notes</option>
             </select>
-            <ChevronDown className="w-4 h-4 text-gray-500 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
         </div>
       </header>

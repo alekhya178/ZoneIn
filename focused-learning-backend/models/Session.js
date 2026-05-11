@@ -60,6 +60,18 @@ const sessionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    elapsedSeconds: {
+      type: Number,
+      default: 0,
+    },
+    watchTimeSeconds: {
+      type: Number,
+      default: 0,
+    },
+    lastBreakReminderAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

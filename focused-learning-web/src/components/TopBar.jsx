@@ -39,16 +39,7 @@ const TopBar = ({ user }) => {
       )}
 
       <div className="flex items-center gap-6">
-        {!isHome && (
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="bg-card border border-gray-800 text-sm text-white rounded-full pl-10 pr-4 py-2 focus:outline-none focus:border-primary w-64 transition-colors"
-            />
-            <Search className="w-4 h-4 text-gray-500 absolute left-4 top-2.5" />
-          </div>
-        )}
+
 
         <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
           <Bell className="w-5 h-5" />
@@ -69,7 +60,7 @@ const TopBar = ({ user }) => {
               </span>
             </div>
           </div>
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+
         </div>
       </div>
     </header>

@@ -74,7 +74,7 @@ async function rehydrateState() {
 
 chrome.runtime.onInstalled.addListener(() => {
   initializeStorage();
-  chrome.alarms.create("midnightCheck", { periodInMinutes: 60 });
+  chrome.alarms.create("midnightCheck", { periodInMinutes: 1 });
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -145,10 +145,18 @@ async function updateToolbar(isFocus) {
 async function startSession(videoTitle = "", videoUrl = "") {
   if (currentSession && currentSession.active) return;
 
+  const { blockedCount } = await chrome.storage.local.get(["blockedCount"]);
+  
+  // Emergency reset for runaway count (if > 1000)
+  if ((blockedCount || 0) > 1000) {
+    await chrome.storage.local.set({ blockedCount: 10 });
+  }
+
   currentSession = {
     active: true,
     startTime: new Date().toISOString(),
     watchTimeSeconds: 0,
+    startBlockedCount: (blockedCount > 1000 ? 10 : (blockedCount || 0)),
     videoTitle: videoTitle,
     videoUrl: videoUrl
   };
@@ -163,7 +171,7 @@ async function startSession(videoTitle = "", videoUrl = "") {
     const session = await startBackendSession(cachedRoadmap?._id, cachedRoadmap?.goal || videoTitle, videoTitle, videoUrl);
     if (session && session._id) {
       currentSession.backendId = session._id;
-      await chrome.storage.local.set({ currentSession });
+      await chrome.storage.local.set({ currentSession, activeSessionId: session._id });
     }
   } catch (e) {
     if (e.message !== "Not authorized, no token") {
@@ -183,8 +191,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       startSession(message.videoTitle, message.videoUrl);
     }
     if (sender.tab) activeYoutubeTabId = sender.tab.id;
+  } else if (message.type === "PAGE_LOADED") {
+    startSession("Browsing YouTube", message.url);
   } else if (message.type === "HEARTBEAT") {
-    processHeartbeat(message.seconds || 5);
+    processHeartbeat(message.seconds || 5, sender.tab?.id);
   } else if (message.type === "TOGGLE_FOCUS_MODE") {
     chrome.storage.local.set({ isFocusMode: message.isFocusMode });
     chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
@@ -199,7 +209,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function processHeartbeat(seconds) {
+async function processHeartbeat(seconds, tabId) {
+  checkAndResetDailyStats(); // Ensure stats are reset if day changed
+  
+  // Emergency cleanup for runaway counts in storage
+  const storage = await chrome.storage.local.get(["blockedCount", "currentSession", "todayWatchTime"]);
+  if ((storage.blockedCount || 0) > 1000) {
+    await chrome.storage.local.set({ blockedCount: 0 });
+    if (storage.currentSession) {
+      storage.currentSession.startBlockedCount = 0;
+      await chrome.storage.local.set({ currentSession: storage.currentSession });
+    }
+  }
+
+  // Only process heartbeat for the active tab to prevent overcounting with multiple tabs
+  if (tabId && activeYoutubeTabId && tabId !== activeYoutubeTabId) return;
+
   const result = await chrome.storage.local.get(["watchTime", "todayWatchTime", "isFocusMode", "heartbeatCount", "currentSession"]);
   
   if (result.isFocusMode === false) return;
@@ -216,8 +241,9 @@ async function processHeartbeat(seconds) {
     
     if (updates.heartbeatCount >= 6) {
       updates.heartbeatCount = 0;
-      const blocked = await chrome.storage.local.get("blockedCount");
-      updateBackendSession(blocked.blockedCount || 0, result.currentSession.watchTimeSeconds);
+      const { blockedCount } = await chrome.storage.local.get("blockedCount");
+      const sessionDistractions = Math.max(0, (blockedCount || 0) - (result.currentSession.startBlockedCount || 0));
+      updateBackendSession(sessionDistractions, result.currentSession.watchTimeSeconds);
     }
   }
 

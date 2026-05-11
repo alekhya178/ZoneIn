@@ -11,7 +11,12 @@ const admin = require("firebase-admin");
 // Initialize Firebase Admin
 require("./firebaseAdmin");
 
+const { initNotificationJobs } = require("./services/notificationService");
+
 const app = express();
+// Initialize automated notification jobs (cron)
+initNotificationJobs();
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" }
@@ -41,6 +46,10 @@ app.use("/api/sessions", require("./routes/sessionsWebRoutes"));
 app.use("/api/sessions-web", require("./routes/sessionsWebRoutes"));
 app.use("/api/notes", require("./routes/notesRoutes"));
 app.use("/api/profile", require("./routes/profileRoutes"));
+app.use("/api/settings", require("./routes/settingsWebRoutes"));
+app.use("/api/contact", require("./routes/contactWebRoutes"));
+app.use("/api/privacy", require("./routes/privacyRoutes"));
+app.use("/api/data", require("./routes/dataRoutes"));
 app.use("/api", require("./chatbot/chatRoutes"));
 
 // Socket.io for study session timer sync
