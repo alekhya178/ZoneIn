@@ -41,7 +41,7 @@ const Dashboard = ({ user, setUser }) => {
 
         // First, push local stats to ensure backend is up to date
         if (localBlocked !== undefined) {
-          await fetch("http://localhost:5000/api/analytics/sync-today-stats", {
+          await fetch("https://zonein-dplikt.onrender.com/api/analytics/sync-today-stats", {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',
@@ -52,10 +52,10 @@ const Dashboard = ({ user, setUser }) => {
         }
 
         const [statsRes, roadmapRes] = await Promise.all([
-          fetch("http://localhost:5000/api/analytics/dashboard/stats", {
+          fetch("https://zonein-dplikt.onrender.com/api/analytics/dashboard/stats", {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
-          fetch("http://localhost:5000/api/roadmap/active", {
+          fetch("https://zonein-dplikt.onrender.com/api/roadmap/active", {
             headers: { 'Authorization': `Bearer ${token}` }
           })
         ]);
@@ -167,7 +167,7 @@ const Dashboard = ({ user, setUser }) => {
         }
       });
       
-      await fetch(`http://localhost:5000/api/roadmap-web/${stats.activeRoadmap._id}`, {
+      await fetch(`https://zonein-dplikt.onrender.com/api/roadmap-web/${stats.activeRoadmap._id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

@@ -8,6 +8,8 @@ import VerifyEmail from './components/VerifyEmail';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
+const API_BASE = "https://zonein-dplikt.onrender.com";
+
 const App = () => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -61,7 +63,7 @@ const App = () => {
         }
 
         try {
-          const response = await fetch("http://localhost:5000/api/auth/sync", {
+          const response = await fetch(`${API_BASE}/api/auth/sync`, {
             method: 'POST',
             headers: { 
               'Content-Type': 'application/json',

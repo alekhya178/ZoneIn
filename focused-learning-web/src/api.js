@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000/api";
+const API_URL = "https://zonein-dplikt.onrender.com/api";
 
 export const fetchApi = async (endpoint, options = {}) => {
   const token = localStorage.getItem("token");
