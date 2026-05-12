@@ -820,7 +820,7 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
               <div className="w-full h-full rounded-full bg-card flex items-center justify-center overflow-hidden border-2 border-primary transition-all group-hover/avatar:opacity-50">
                 {user?.avatar ? (
                   <img 
-                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:5000${user.avatar}`} 
+                    src={user.avatar.startsWith('http') ? user.avatar : `https://zonein-3.onrender.com${user.avatar}`} 
                     alt={user?.preferredName || user?.name || "User"} 
                     className="w-full h-full object-cover" 
                   />
