@@ -24,7 +24,7 @@ const RoadmapList = ({ user }) => {
   const [deleteConfirmation, setDeleteConfirmation] = useState({ isOpen: false, id: null, message: "" });
 
   useEffect(() => {
-    const socket = io('http://localhost:5000');
+    const socket = io('https://zonein-3.onrender.com');
     
     if (user?._id) {
       socket.emit('join', user._id);
