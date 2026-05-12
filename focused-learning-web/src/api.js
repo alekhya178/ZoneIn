@@ -4,17 +4,25 @@ export const fetchApi = async (endpoint, options = {}) => {
   const token = localStorage.getItem("token");
 
   const headers = {
-    "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
+
+  // Only set JSON content type if it's not FormData
+  if (!options.isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const config = {
     ...options,
     headers,
   };
 
-  if (config.body && typeof config.body === "object") {
+  // Remove isFormData from config so it doesn't get sent to fetch
+  delete config.isFormData;
+
+  if (config.body && typeof config.body === "object" && !options.isFormData) {
+    // Note: options.isFormData was deleted from config, but still available in options
     config.body = JSON.stringify(config.body);
   }
 

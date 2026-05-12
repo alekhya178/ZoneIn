@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "Learning to grow and growing to learn."
     },
+    avatar: {
+      type: String,
+      default: null
+    },
     username: {
       type: String,
       unique: true,

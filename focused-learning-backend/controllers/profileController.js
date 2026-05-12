@@ -6,6 +6,65 @@ const Session = require("../models/Session");
 const Roadmap = require("../models/Roadmap");
 const TopicEngagement = require("../models/TopicEngagement");
 const { calculateStreak } = require("../services/streakService");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+// Multer Config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = "./uploads/avatars";
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `user-${req.user._id}-${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = filetypes.test(file.mimetype);
+    if (extname && mimetype) return cb(null, true);
+    cb(new Error("Images only (jpeg, jpg, png, webp)!"));
+  },
+}).single("avatar");
+
+/**
+ * @desc    Upload avatar
+ * @route   POST /api/profile/upload-avatar
+ * @access  Private
+ */
+const uploadAvatar = async (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message });
+    if (!req.file) return res.status(400).json({ message: "Please upload a file" });
+
+    try {
+      const user = await User.findById(req.user._id);
+      
+      // Delete old avatar if exists
+      if (user.avatar) {
+        const oldPath = path.join(__dirname, "..", user.avatar);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+
+      const avatarPath = `/uploads/avatars/${req.file.filename}`;
+      user.avatar = avatarPath;
+      await user.save();
+
+      res.json({ success: true, avatar: avatarPath });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+};
 
 // @desc    Get user profile
 // @route   GET /api/profile/me
@@ -178,10 +237,32 @@ const getStreakData = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Delete avatar
+ * @route   DELETE /api/profile/avatar
+ * @access  Private
+ */
+const deleteAvatar = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (user.avatar) {
+      const oldPath = path.join(__dirname, "..", user.avatar);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      user.avatar = null;
+      await user.save();
+    }
+    res.json({ success: true, message: "Avatar removed" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   getStudyActivity,
   getRoadmapProgress,
-  getStreakData
+  getStreakData,
+  uploadAvatar,
+  deleteAvatar
 };

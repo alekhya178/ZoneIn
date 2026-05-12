@@ -24,10 +24,18 @@ const noteSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    videoUrl: {
+      type: String,
+      default: "",
+    },
     type: {
       type: String,
-      enum: ["ai_summary", "manual_note", "topic_notes"],
+      enum: ["ai_summary", "manual_note", "topic_notes", "personalized", "general"],
       default: "manual_note",
+    },
+    transcript: {
+      type: String,
+      default: "",
     },
     content: {
       type: String,
