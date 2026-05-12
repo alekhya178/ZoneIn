@@ -12,6 +12,7 @@ const { sendGoalCompletionEmail } = require("../services/mailService");
 
 const axios = require("axios");
 const { YoutubeTranscript } = require("youtube-transcript");
+const { findBestVideo } = require("../services/youtubeService");
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -293,18 +294,33 @@ router.get("/:roadmapId/topic/:topicId", protect, async (req, res) => {
       });
     }
 
-    const videoWatches = await VideoWatch.find({
+    let videoWatches = await VideoWatch.find({
       user: req.user._id,
       topicId: topic._id.toString()
     }).sort({ watchSeconds: -1 });
 
-    const primaryVideo = videoWatches[0] || null;
+    let primaryVideo = videoWatches[0] || null;
+    let recommendedVideo = null;
+
+    // --- Suggest a Recommended Video using API ---
+    if (!primaryVideo && process.env.YOUTUBE_API_KEY) {
+      console.log(`[YouTube API] Searching for recommendation: ${topic.title}`);
+      const discovered = await findBestVideo(topic.title);
+      if (discovered) {
+        recommendedVideo = {
+          videoId: discovered.videoId,
+          videoTitle: discovered.videoTitle,
+          url: `https://www.youtube.com/watch?v=${discovered.videoId}`
+        };
+      }
+    }
 
     res.json({
       topicTitle: topic.title,
       description: topic.description,
       engagement,
       primaryVideo,
+      recommendedVideo, // Send the recommendation to the frontend
       watchPercentage: engagement.watchPercentage,
       activeTimePercent: engagement.activeTimePercent,
       quizScore: engagement.quizScore,

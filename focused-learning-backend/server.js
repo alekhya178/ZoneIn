@@ -7,6 +7,14 @@ const http = require("http");
 const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const admin = require("firebase-admin");
+const path = require("path");
+const fs = require("fs");
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, "uploads/avatars");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // Initialize Firebase Admin
 require("./firebaseAdmin");
@@ -26,6 +34,7 @@ connectDB();
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // TEST ROUTE
 app.get("/", (req, res) => {

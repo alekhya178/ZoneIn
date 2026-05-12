@@ -9,6 +9,7 @@ import PrivacySecurity from './settings/PrivacySecurity';
 const tabs = [
   { id: 'account',       label: 'Account',       icon: User,    component: AccountSettings },
   { id: 'appearance',    label: 'Appearance',     icon: Palette, component: AppearanceSettings },
+  { id: 'notifications', label: 'Notifications',  icon: Bell,    component: NotificationSettings },
   { id: 'privacy',       label: 'Privacy',        icon: Shield,  component: PrivacySecurity },
 ];
 

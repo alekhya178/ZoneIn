@@ -1,7 +1,45 @@
 const Note = require("../models/Note");
-const { generateVideoSummary } = require("../services/aiService");
+const { generateVideoSummary, generateAINotesFromVideo } = require("../services/aiService");
+
+// @desc    Generate AI notes from YouTube URL with Whisper fallback
+// @route   POST /api/notes/generate
+// @access  Private
+const generateAINotes = async (req, res, next) => {
+  const { videoUrl } = req.body;
+  if (!videoUrl) return res.status(400).json({ message: "Video URL is required" });
+
+  try {
+    // Set up SSE for status updates
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const sendStatus = (status) => {
+      res.write(`data: ${JSON.stringify({ status })}\n\n`);
+    };
+
+    const aiResult = await generateAINotesFromVideo(videoUrl, sendStatus);
+
+    const note = await Note.create({
+      user: req.user._id,
+      videoTitle: aiResult.videoTitle,
+      videoUrl: aiResult.videoUrl,
+      transcript: aiResult.transcript,
+      content: aiResult.summary,
+      type: "general", // Using the new 'general' type
+    });
+
+    res.write(`data: ${JSON.stringify({ success: true, note })}\n\n`);
+    res.end();
+  } catch (error) {
+    console.error("[Notes Controller] AI Generation Error:", error);
+    res.write(`data: ${JSON.stringify({ success: false, message: error.message })}\n\n`);
+    res.end();
+  }
+};
 
 // @desc    Save a manual note or trigger AI summary
+// ... (rest of the controller)
 // @route   POST /api/notes
 // @access  Private
 const createNote = async (req, res, next) => {
@@ -88,4 +126,4 @@ const deleteNote = async (req, res, next) => {
   }
 };
 
-module.exports = { createNote, getNotes, deleteNote };
+module.exports = { generateAINotes, createNote, getNotes, deleteNote };

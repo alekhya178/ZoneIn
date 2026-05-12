@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   User, Mail, Phone, MapPin, Calendar, Edit2, CheckCircle, 
-  ChevronRight, Trash2, Video, Shield, Settings, 
+  ChevronRight, Trash2, Video, Shield, Settings, Camera, Upload, Image as ImageIcon, Loader2,
   Award, FileText, Activity, Zap, Search, Bell, Play, Lock, Info, X, Globe, CheckCircle2
 } from 'lucide-react';
 import { 
@@ -54,6 +54,15 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
   });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState(null);
+  
+  // Avatar States
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [avatarStep, setAvatarStep] = useState('choice'); // 'choice', 'upload', 'camera'
+  const [cameraStream, setCameraStream] = useState(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const videoRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
 
   const [stats, setStats] = useState({
     completedTopics: 0,
@@ -248,6 +257,104 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
     }
   };
 
+  const handleAvatarUpload = async (imageBlob) => {
+    setAvatarLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', imageBlob, 'avatar.jpg');
+
+      const res = await fetchApi('/profile/upload-avatar', {
+        method: 'POST',
+        body: formData,
+        isFormData: true
+      });
+
+      if (res.success) {
+        const updatedUser = { ...user, avatar: res.avatar };
+        setUser(updatedUser);
+        if (setGlobalUser) setGlobalUser(updatedUser);
+        setShowAvatarModal(false);
+        stopCamera();
+        setPreviewImage(null);
+        setAvatarStep('choice');
+      }
+    } catch (err) {
+      alert("Failed to upload image: " + err.message);
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      setCameraStream(stream);
+      if (videoRef.current) videoRef.current.srcObject = stream;
+      setAvatarStep('camera');
+    } catch (err) {
+      alert("Could not access camera: " + err.message);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      canvas.toBlob((blob) => {
+        setPreviewImage(URL.createObjectURL(blob));
+        setAvatarStep('upload');
+        stopCamera();
+      }, 'image/jpeg', 0.9);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPreviewImage(URL.createObjectURL(file));
+      setAvatarStep('upload');
+    }
+  };
+
+  const handleUploadConfirm = () => {
+    const fileInput = document.getElementById('avatarFileInput');
+    if (fileInput && fileInput.files[0]) {
+      handleAvatarUpload(fileInput.files[0]);
+    } else if (previewImage) {
+      fetch(previewImage).then(res => res.blob()).then(handleAvatarUpload);
+    }
+  };
+
+  const handleDeleteAvatar = async () => {
+    if (!window.confirm("Are you sure you want to remove your profile picture?")) return;
+    setAvatarLoading(true);
+    try {
+      const res = await fetchApi('/profile/avatar', { method: 'DELETE' });
+      if (res.success) {
+        const updatedUser = { ...user, avatar: null };
+        setUser(updatedUser);
+        if (setGlobalUser) setGlobalUser(updatedUser);
+        setShowAvatarModal(false);
+      }
+    } catch (err) {
+      alert("Failed to remove avatar: " + err.message);
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
     setEditFormData(prev => ({ ...prev, [name]: value }));
@@ -313,6 +420,13 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
     };
   }, [initialUser?._id, location]);
 
+  // Sync camera stream with video element
+  useEffect(() => {
+    if (avatarStep === 'camera' && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [avatarStep, cameraStream]);
+
   const roadmapPieData = [
     { name: 'Completed', value: stats?.completedTopics || 0, color: '#7c3aed' },
     { name: 'In Progress', value: stats?.inProgressTopics || 0, color: '#f59e0b' },
@@ -333,6 +447,140 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
 
   return (
     <div className="flex-1 bg-background text-white p-8 overflow-y-auto custom-scrollbar">
+      {/* Avatar Modal */}
+      <AnimatePresence>
+        {showAvatarModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!avatarLoading) {
+                  setShowAvatarModal(false);
+                  stopCamera();
+                }
+              }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-surface border border-card rounded-[2.5rem] p-10 shadow-2xl overflow-hidden"
+            >
+              <button 
+                onClick={() => {
+                  setShowAvatarModal(false);
+                  stopCamera();
+                }}
+                className="absolute top-6 right-6 p-2 text-gray-500 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-2xl font-black mb-2">Update Profile Picture</h3>
+                    <p className="text-gray-400 text-sm">Choose how you want to update your photo.</p>
+                  </div>
+                  {user?.avatar && (
+                    <button 
+                      onClick={handleDeleteAvatar}
+                      disabled={avatarLoading}
+                      className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl hover:bg-red-500 hover:text-white transition-all group"
+                      title="Remove Current Photo"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
+              {avatarStep === 'choice' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => document.getElementById('avatarFileInput').click()}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-card/50 border border-white/5 rounded-3xl hover:border-primary/50 transition-all group"
+                  >
+                    <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primaryLight group-hover:scale-110 transition-transform">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <span className="font-bold text-sm">Upload Photo</span>
+                    <input 
+                      id="avatarFileInput" 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handleFileChange}
+                    />
+                  </button>
+                  <button 
+                    onClick={startCamera}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-card/50 border border-white/5 rounded-3xl hover:border-primary/50 transition-all group"
+                  >
+                    <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primaryLight group-hover:scale-110 transition-transform">
+                      <Camera className="w-8 h-8" />
+                    </div>
+                    <span className="font-bold text-sm">Take Photo</span>
+                  </button>
+                </div>
+              )}
+
+              {avatarStep === 'camera' && (
+                <div className="space-y-6">
+                  <div className="relative aspect-square rounded-3xl overflow-hidden bg-black border-2 border-primary/30">
+                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                    <div className="absolute inset-0 border-[20px] border-black/20 pointer-events-none"></div>
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setAvatarStep('choice')}
+                      className="flex-1 py-4 bg-card text-gray-400 font-bold rounded-2xl hover:text-white transition-all"
+                    >
+                      Back
+                    </button>
+                    <button 
+                      onClick={capturePhoto}
+                      className="flex-[2] py-4 bg-primary text-white font-black rounded-2xl hover:bg-primaryDark transition-all shadow-xl shadow-primary/20"
+                    >
+                      Capture Photo
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {avatarStep === 'upload' && (
+                <div className="space-y-6">
+                  <div className="flex justify-center">
+                    <div className="w-48 h-48 rounded-full border-4 border-primary/30 p-1">
+                      <img src={previewImage} className="w-full h-full rounded-full object-cover" alt="Preview" />
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={() => setAvatarStep('choice')}
+                      className="flex-1 py-4 bg-card text-gray-400 font-bold rounded-2xl hover:text-white transition-all"
+                      disabled={avatarLoading}
+                    >
+                      Try Another
+                    </button>
+                    <button 
+                      onClick={handleUploadConfirm}
+                      disabled={avatarLoading}
+                      className="flex-[2] py-4 bg-primary text-white font-black rounded-2xl hover:bg-primaryDark transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                    >
+                      {avatarLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                      {avatarLoading ? "Uploading..." : "Save Picture"}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <canvas ref={canvasRef} className="hidden" />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Password Reset Modal */}
       <AnimatePresence>
         {showResetModal && (
@@ -565,26 +813,37 @@ const Profile = ({ user: initialUser, setUser: setGlobalUser }) => {
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[100px] -mr-32 -mt-32"></div>
           
-          <div className="relative">
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-primary/20 p-1">
-              <div className="w-full h-full rounded-full bg-card flex items-center justify-center overflow-hidden border-2 border-primary">
-                {user?.profileImage ? (
-                  <img src={user.profileImage} alt={`${user.firstName} ${user.lastName}`} className="w-full h-full object-cover" />
+            <div 
+              className="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-primary/20 p-1 cursor-pointer group/avatar relative"
+              onClick={() => setShowAvatarModal(true)}
+            >
+              <div className="w-full h-full rounded-full bg-card flex items-center justify-center overflow-hidden border-2 border-primary transition-all group-hover/avatar:opacity-50">
+                {user?.avatar ? (
+                  <img 
+                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:5000${user.avatar}`} 
+                    alt={user?.preferredName || user?.name || "User"} 
+                    className="w-full h-full object-cover" 
+                  />
                 ) : (
                   <span className="text-5xl font-black text-primaryLight uppercase">
-                    {user?.firstName?.charAt(0) || 'U'}
+                    {(user?.firstName?.charAt(0) || user?.name?.charAt(0) || 'U')}
                   </span>
                 )}
               </div>
+              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                <Camera className="w-10 h-10 text-white" />
+              </div>
             </div>
-            <button className="absolute bottom-2 right-2 p-2 bg-primary rounded-full shadow-lg hover:scale-110 transition-transform">
+            <button 
+              onClick={() => setShowAvatarModal(true)}
+              className="absolute bottom-2 right-2 p-2 bg-primary rounded-full shadow-lg hover:scale-110 transition-transform z-10"
+            >
               <Edit2 className="w-4 h-4 text-white" />
             </button>
-          </div>
 
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-3 mb-2">
-              <h2 className="text-3xl font-black tracking-tight">{user?.preferredName || `${user?.firstName} ${user?.lastName}`}</h2>
+              <h2 className="text-3xl font-black tracking-tight">{user?.preferredName || (user?.firstName ? `${user.firstName} ${user.lastName}` : user?.name)}</h2>
               <span className="px-3 py-1 bg-primary/20 text-primaryLight text-xs font-bold rounded-full border border-primary/30 uppercase tracking-widest shadow-sm">
                 {user?.role || 'Learner'}
               </span>

@@ -312,17 +312,34 @@ const TopicDetail = () => {
                   <PlayCircle className="w-8 h-8 text-primary" />
                 </div>
                 <p className="text-white font-bold mb-2">No video tracked yet</p>
-                <a 
-                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(data.topicTitle)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline text-sm font-bold flex items-center gap-2 mb-4"
-                >
-                  Search YouTube for: {data.topicTitle} <ExternalLink className="w-3 h-3" />
-                </a>
-                <p className="text-xs text-gray-500 leading-relaxed max-w-[280px]">
-                  Watch a video on YouTube while the ZoneIn extension is active — it will automatically track your watch time and the video will appear here.
-                </p>
+                
+                <div className="flex flex-col items-center gap-6 mt-4">
+                  <a 
+                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(data.topicTitle + " tutorial")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative px-10 py-5 bg-red-600 hover:bg-red-700 text-white font-black rounded-[2rem] transition-all shadow-2xl shadow-red-600/30 flex flex-col items-center gap-1 uppercase tracking-[0.2em]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <PlayCircle className="w-6 h-6 animate-pulse" />
+                      <span className="text-sm">Search on YouTube</span>
+                    </div>
+                    <span className="text-[10px] opacity-60 font-bold">Query: {data.topicTitle}</span>
+                  </a>
+
+                  {data.recommendedVideo && (
+                    <div className="text-center space-y-2 animate-fade-in">
+                      <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Recommended by YouTube API</p>
+                      <p className="text-xs text-gray-400 italic max-w-[300px]">
+                        "{data.recommendedVideo.videoTitle}"
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-gray-500 leading-relaxed max-w-[320px] text-center font-medium">
+                    Click above to find a tutorial. Your progress will be <span className="text-primary">tracked automatically</span> by the ZoneIn extension once you start watching.
+                  </p>
+                </div>
               </div>
             )}
           </div>
